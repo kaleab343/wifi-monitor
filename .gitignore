@@ -1,0 +1,27 @@
+# Build directories
+cmake-build-*/
+build/
+out/
+
+# Executables
+*.exe
+
+# IDE settings
+.idea/
+.vscode/
+*.iml
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+*.ninja
+compile_commands.json
+
+# Object files
+*.o
+*.obj
+
+# Temporary files
+*.tmp
+tmp_*
