@@ -98,8 +98,16 @@ class HybridRouterGUI:
                  bg='#0066cc', fg='white', font=('Arial', 10, 'bold'),
                  padx=15, pady=8).pack(side=tk.LEFT, padx=5)
         
-        tk.Button(btn_frame, text="🔍 Deep Monitor (10s)", command=self.passive_monitor,
+        tk.Button(btn_frame, text="🔍 Complete Discovery", command=self.complete_discovery,
                  bg='#0066cc', fg='white', font=('Arial', 10, 'bold'),
+                 padx=15, pady=8).pack(side=tk.LEFT, padx=5)
+        
+        tk.Button(btn_frame, text="🕵️ MITM Scan", command=self.mitm_scan,
+                 bg='#dc3545', fg='white', font=('Arial', 10, 'bold'),
+                 padx=15, pady=8).pack(side=tk.LEFT, padx=5)
+        
+        tk.Button(btn_frame, text="📝 Manage Known Devices", command=self.open_device_manager,
+                 bg='#6c757d', fg='white', font=('Arial', 10, 'bold'),
                  padx=15, pady=8).pack(side=tk.LEFT, padx=5)
         
         tk.Button(btn_frame, text="🚫 Block Selected (Python)", command=self.block_selected,
@@ -195,6 +203,168 @@ class HybridRouterGUI:
             
         except Exception as e:
             self.log(f"✗ Scan error: {e}", "ERROR")
+    
+    def complete_discovery(self):
+        """Complete device discovery using all methods"""
+        self.log("🔍 Starting complete discovery (NetBIOS + mDNS + SSDP + MAC DB)...", "INFO")
+        self.update_status("Running complete discovery...")
+        self.run_in_thread(self._complete_discovery_thread)
+    
+    def _complete_discovery_thread(self):
+        """Background complete discovery"""
+        try:
+            self.log("Running comprehensive device discovery...", "INFO")
+            self.log("Methods: NetBIOS, mDNS, SSDP, Enhanced MAC Database", "INFO")
+            
+            result = subprocess.run(['python', 'complete_device_discovery.py'], 
+                                  capture_output=True, text=True, timeout=60)
+            
+            self.log(f"Discovery completed with return code: {result.returncode}", "INFO")
+            
+            if result.returncode == 0:
+                # Extract JSON from output (it's at the end after "JSON Output:")
+                output = result.stdout
+                
+                # Debug: Save full output
+                self.log(f"Output length: {len(output)} characters", "INFO")
+                
+                json_start = output.rfind('[')
+                if json_start >= 0:
+                    json_data = output[json_start:]
+                    self.log(f"Found JSON at position {json_start}", "INFO")
+                    
+                    try:
+                        devices = json.loads(json_data)
+                        self.devices = devices
+                        self.log(f"✓ Complete discovery found {len(devices)} device(s)", "SUCCESS")
+                        
+                        # Show discovery methods used
+                        for dev in devices:
+                            name_source = dev.get('name_source', 'Unknown')
+                            self.log(f"  {dev.get('hostname', 'Unknown')} - {name_source}", "INFO")
+                        
+                        self.root.after(0, self._update_device_tree)
+                        self.root.after(0, lambda: self.update_status(f"Found {len(devices)} devices"))
+                    except json.JSONDecodeError as e:
+                        self.log(f"✗ JSON parse error: {e}", "ERROR")
+                        self.log(f"JSON data preview: {json_data[:200]}...", "ERROR")
+                else:
+                    self.log("✗ Could not find JSON in output", "ERROR")
+                    self.log(f"Output preview: {output[:500]}...", "ERROR")
+            else:
+                self.log(f"✗ Discovery failed with code {result.returncode}", "ERROR")
+                self.log(f"Error: {result.stderr[:500]}", "ERROR")
+                
+        except subprocess.TimeoutExpired:
+            self.log("✗ Discovery timeout", "ERROR")
+        except json.JSONDecodeError as e:
+            self.log(f"✗ Failed to parse discovery output: {e}", "ERROR")
+        except Exception as e:
+            self.log(f"✗ Discovery error: {e}", "ERROR")
+    
+    def mitm_scan(self):
+        """Run MITM passive network scan to detect ALL devices"""
+        self.log("🕵️ Starting MITM Passive Network Scan...", "INFO")
+        self.log("⚠️ This requires Administrator privileges!", "WARNING")
+        self.log("📡 Will intercept network traffic for 30 seconds...", "INFO")
+        self.log("🔍 Detects ALL devices, even silent/sleeping ones", "INFO")
+        self.update_status("MITM scanning...")
+        self.run_in_thread(self._mitm_scan_thread)
+    
+    def _mitm_scan_thread(self):
+        """Background MITM scanning"""
+        try:
+            # Check if running as admin on Windows
+            if os.name == 'nt':
+                import ctypes
+                is_admin = ctypes.windll.shell32.IsUserAnAdmin()
+                if not is_admin:
+                    self.log("✗ ERROR: Not running as Administrator!", "ERROR")
+                    self.log("💡 Right-click run_gui_as_admin_mitm.bat and select 'Run as Administrator'", "INFO")
+                    self.root.after(0, lambda: messagebox.showerror("Admin Required",
+                        "MITM scan requires Administrator privileges!\n\n"
+                        "Please run: run_gui_as_admin_mitm.bat"))
+                    return
+            
+            # Import MITM scanner
+            try:
+                from mitm_passive_scanner import MITMNetworkScanner
+            except ImportError:
+                self.log("✗ ERROR: mitm_passive_scanner.py not found", "ERROR")
+                return
+            
+            # Get router IP
+            router_ip = "192.168.1.1"  # Default, can be configured
+            
+            # Create scanner
+            self.log(f"Initializing MITM scanner for gateway {router_ip}...", "INFO")
+            scanner = MITMNetworkScanner(router_ip=router_ip)
+            
+            self.log(f"✓ Interface: {scanner.interface}", "SUCCESS")
+            self.log(f"✓ Gateway: {scanner.router_ip} ({scanner.gateway_mac})", "SUCCESS")
+            self.log(f"✓ My IP: {scanner.my_ip}", "SUCCESS")
+            self.log("", "INFO")
+            self.log("🔄 Enabling IP forwarding...", "INFO")
+            self.log("🎯 Starting ARP poisoning...", "INFO")
+            self.log("📶 Capturing packets for 30 seconds...", "INFO")
+            self.log("", "INFO")
+            
+            # Run scan (30 seconds)
+            scanner.start_passive_scan(duration=30)
+            
+            # Get results
+            devices_dict = scanner.get_devices()
+            
+            self.log(f"✓ MITM scan complete - Found {len(devices_dict)} devices!", "SUCCESS")
+            
+            # Convert to display format
+            device_list = []
+            for mac, device in devices_dict.items():
+                device_list.append({
+                    'ip': device.get('ip', 'Unknown'),
+                    'mac': mac,
+                    'hostname': device.get('hostname', 'Unknown'),
+                    'manufacturer': device.get('manufacturer', 'Unknown'),
+                    'type': device.get('type', 'Unknown Device'),
+                    'os': device.get('os', 'Unknown'),
+                    'name_source': 'MITM Traffic Analysis',
+                    'traffic_sent': device.get('traffic', {}).get('bytes_sent', 0),
+                    'traffic_recv': device.get('traffic', {}).get('bytes_recv', 0),
+                    'packets': device.get('traffic', {}).get('packets', 0),
+                })
+            
+            # Sort by IP
+            device_list.sort(key=lambda x: self._ip_sort_key(x.get('ip', '0.0.0.0')))
+            
+            # Update display
+            self.devices = device_list
+            self.root.after(0, self._update_device_tree)
+            self.root.after(0, lambda: self.update_status(f"MITM scan found {len(device_list)} devices"))
+            
+            # Log device details
+            for dev in device_list:
+                traffic = f"↑{dev['traffic_sent']}B ↓{dev['traffic_recv']}B ({dev['packets']} pkts)"
+                self.log(f"  {dev['hostname']} ({dev['ip']}) - {traffic}", "INFO")
+            
+            # Save to file
+            with open('mitm_devices.json', 'w') as f:
+                json.dump(devices_dict, f, indent=2)
+            
+            self.log("✓ Results saved to mitm_devices.json", "SUCCESS")
+            self.log("", "INFO")
+            self.log("🎉 MITM scan completed successfully!", "SUCCESS")
+            
+        except Exception as e:
+            self.log(f"✗ MITM scan error: {e}", "ERROR")
+            import traceback
+            self.log(traceback.format_exc(), "ERROR")
+    
+    def _ip_sort_key(self, ip_str):
+        """Convert IP string to sortable tuple"""
+        try:
+            return tuple(int(part) for part in ip_str.split('.'))
+        except:
+            return (999, 999, 999, 999)
     
     def passive_monitor(self):
         """Monitor network passively for 10 seconds"""
@@ -442,6 +612,11 @@ class HybridRouterGUI:
         if confirm:
             self.log(f"✅ Unblocking {mac}...", "INFO")
             self.run_in_thread(self._unblock_device_thread, mac, f"Manual Entry ({mac})")
+    
+    def open_device_manager(self):
+        """Open Device Manager GUI"""
+        import subprocess
+        subprocess.Popen(['python', 'device_manager_gui.py'])
     
     def refresh_blocked(self):
         """Refresh blocked devices list from router"""

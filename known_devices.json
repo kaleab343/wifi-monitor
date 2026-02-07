@@ -1,0 +1,17 @@
+{
+  "comment": "Manual device database for devices with randomized/unknown MACs",
+  "devices": {
+    "A6:57:18:57:C1:53": {
+      "name": "Unknown Device .5",
+      "type": "Network Device",
+      "os": "Unknown",
+      "notes": "Randomized MAC - Please identify manually"
+    },
+    "D0:F8:8C:1A:45:B7": {
+      "name": "Unknown Device .3",
+      "type": "Network Device", 
+      "os": "Unknown",
+      "notes": "Check router DHCP table for real name"
+    }
+  }
+}
