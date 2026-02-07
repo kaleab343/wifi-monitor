@@ -1,0 +1,185 @@
+╔══════════════════════════════════════════════════════════════════════╗
+║                                                                      ║
+║           ENABLE FULL API ACCESS - REMOTE ACCESS SETUP               ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+You found the Remote Access Configuration page! 🎉
+
+This controls which services are accessible from LAN (your local network).
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  ✅ WHAT TO ENABLE                                                 ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+Current Status:
+┌─────────────────┬─────┬─────┬──────────┐
+│ Service         │ LAN │ WAN │ Port     │
+├─────────────────┼─────┼─────┼──────────┤
+│ TELNET          │ ☐   │ ☐   │ 20003    │
+│ HTTP            │ ☐   │ ☐   │ 80       │
+│ HTTPS           │ ☐   │ ☐   │ 443      │
+│ Ping            │ ☐   │ ☐   │ -        │
+└─────────────────┴─────┴─────┴──────────┘
+
+RECOMMENDED CONFIGURATION:
+┌─────────────────┬─────┬─────┬──────────┐
+│ Service         │ LAN │ WAN │ Action   │
+├─────────────────┼─────┼─────┼──────────┤
+│ TELNET          │ ☐   │ ☐   │ SKIP     │
+│ HTTP            │ ☑   │ ☐   │ CHECK ✓  │
+│ HTTPS           │ ☐   │ ☐   │ SKIP     │
+│ Ping            │ ☑   │ ☐   │ CHECK ✓  │
+└─────────────────┴─────┴─────┴──────────┘
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  📝 STEP-BY-STEP INSTRUCTIONS                                      ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+Step 1: Enable HTTP on LAN
+---------------------------
+✓ CHECK the "LAN" checkbox for HTTP (port 80)
+✗ LEAVE "WAN" unchecked (for security)
+
+Why: This allows our Python software to access the router's web
+     interface and APIs from your local network.
+
+
+Step 2: Enable Ping on LAN (Optional)
+--------------------------------------
+✓ CHECK the "LAN" checkbox for Ping
+✗ LEAVE "WAN" unchecked (for security)
+
+Why: This helps with connection testing and troubleshooting.
+
+
+Step 3: LEAVE THESE DISABLED
+-----------------------------
+✗ TELNET - Not needed and security risk
+✗ HTTPS - Not needed (we use HTTP)
+✗ WAN checkboxes - NEVER enable (security risk!)
+
+
+Step 4: Save Changes
+---------------------
+Click "Apply" or "Save" button at the bottom of the page.
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  ⚠️ IMPORTANT SECURITY NOTES                                       ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+✓ ONLY enable LAN access (your local network)
+✗ NEVER enable WAN access (internet access)
+
+Why WAN is dangerous:
+• Exposes router to internet hackers
+• Anyone could try to access your router
+• Potential security breach
+• Could compromise your network
+
+LAN access is safe because:
+• Only accessible from your WiFi network
+• Only you and your devices can access
+• No internet exposure
+• Protected by WiFi password
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  🎯 EXPECTED RESULT                                                ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+After enabling HTTP on LAN:
+
+BEFORE:
+  ✗ APIs return 405 Method Not Allowed
+  ✗ Only MAC filtering works
+  ✗ Can't get device list
+  ✗ Can't access WiFi settings
+
+AFTER:
+  ✓ APIs should work properly
+  ✓ Device list accessible
+  ✓ WiFi settings readable
+  ✓ Router info available
+  ✓ Full API access enabled!
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  🔧 CONFIGURATION SUMMARY                                          ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+In the Remote Access Configuration page:
+
+1. Find the HTTP row
+2. Check the ☑ box under "LAN" column
+3. Leave WAN unchecked: ☐
+4. (Optional) Check Ping LAN: ☑
+5. Click Save/Apply
+6. Wait for router to apply changes (~5-10 seconds)
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  ✅ AFTER ENABLING - TEST IT                                       ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+Once saved, come back here and tell me:
+
+"I enabled HTTP on LAN"
+
+Then I'll run a test to verify all APIs work!
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  ❓ TROUBLESHOOTING                                                ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+Q: I don't see checkboxes, just empty boxes?
+A: Click inside the box under "LAN" to check it
+
+Q: The page won't save?
+A: Make sure you're logged in as 'user' (not guest)
+
+Q: Should I enable HTTPS instead?
+A: No, our code uses HTTP (port 80). HTTPS would need different code.
+
+Q: What if it still doesn't work after enabling?
+A: Tell me and I'll try the web scraping approach instead
+
+Q: Is this safe?
+A: YES! LAN access is safe - only devices on your WiFi can access it.
+   WAN access would be unsafe (don't enable that!)
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  🎯 QUICK CHECKLIST                                                ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+[ ] Go to Remote Access Configuration page
+[ ] Find HTTP row
+[ ] Check the box under LAN column
+[ ] Leave WAN unchecked
+[ ] (Optional) Check Ping LAN
+[ ] Click Save/Apply
+[ ] Wait for confirmation
+[ ] Come back and tell me "Done"
+
+
+═══════════════════════════════════════════════════════════════════════
+
+VISUAL REFERENCE - What to Check:
+
+ServiceName     LAN     WAN     WAN Port
+─────────────────────────────────────────
+TELNET          [ ]     [ ]     20003       ← Leave unchecked
+HTTP            [✓]     [ ]     80          ← CHECK THIS ONE!
+HTTPS           [ ]     [ ]     443         ← Leave unchecked
+Ping            [✓]     [ ]     -           ← Optional
+
+═══════════════════════════════════════════════════════════════════════
+
+Once you enable HTTP LAN access, our Python software will have
+FULL ACCESS to all router APIs! 🎉
+
+Let me know when you've done it!

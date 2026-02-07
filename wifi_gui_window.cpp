@@ -14,6 +14,7 @@
 #include <vector>
 #include <sstream>
 #include <iomanip>
+#include <algorithm>
 
 #pragma comment(lib, "wlanapi.lib")
 #pragma comment(lib, "ole32.lib")
@@ -33,6 +34,7 @@
 #define IDC_REFRESH_DEVICES_BUTTON 110
 #define IDC_COPY_DEVICES_BUTTON 111
 #define IDC_DEEP_SCAN_BUTTON 112
+#define IDC_BLOCK_SELECTED_BUTTON 113
 
 // Context menu IDs
 #define IDM_BLOCK_DEVICE 200
@@ -50,9 +52,135 @@ HWND g_hWndDevicesList;
 HWND g_hMainWindow;
 bool g_protectionEnabled = false;
 bool g_isScanning = false;
+bool g_blockingActive = false;
 std::vector<std::wstring> g_networkSSIDs;
 std::wstring g_currentConnectedNetwork = L"";
 std::vector<std::wstring> g_blockedDevices; // Store blocked MAC addresses
+
+// Structure to store device block info
+struct BlockedDeviceInfo {
+    std::wstring mac;
+    std::string ip;
+    bool isActive;
+};
+
+// Function to block device on router using TR-069/TR-181 API (China Telecom)
+bool BlockDeviceOnRouter(const std::string& macAddress, bool block) {
+    // Router credentials
+    const char* router_ip = "192.168.1.1";
+    const char* username = "user";
+    const char* password = "7dWU!fNf";
+    
+    // Convert MAC to lowercase with colons for router API (China Telecom format)
+    std::string macLower = macAddress;
+    std::transform(macLower.begin(), macLower.end(), macLower.begin(), ::tolower);
+    
+    if (block) {
+        // Add to MAC filter blacklist using exact format from router admin page dev tools
+        // Router needs BOTH URL parameters AND JSON body!
+        // URL params: a=add&x=InternetGatewayDevice...&MacAddress=XX:XX:XX:XX:XX:XX
+        // JSON body: Full object structure
+        
+        // URL encode the MAC address for query parameter (: becomes %3A)
+        std::string macEncoded;
+        for (size_t i = 0; i < macLower.length(); i++) {
+            if (macLower[i] == ':') {
+                macEncoded += "%3A";
+            } else {
+                macEncoded += macLower[i];
+            }
+        }
+        
+        // Build URL with query parameters
+        std::stringstream url;
+        url << "http://" << router_ip << "/uajax/firewall_macfilter_json.htm"
+            << "?a=add"
+            << "&x=InternetGatewayDevice.X_CT_COM_MacFilterCfg.X_CT_COM_MacFilterListCfgObj.%7Bi%7D."
+            << "&MacAddress=" << macEncoded;
+        
+        // Build JSON body
+        std::stringstream jsonData;
+        jsonData << "{"
+                 << "\"MacFilterCfg\":{\"fullPath\":\"InternetGatewayDevice.X_CT_COM_MacFilterCfg.\",\"ExcludeMode\":\"FORWARD\"},"
+                 << "\"MacFilterList\":[{\"fullPath\":\"InternetGatewayDevice.X_CT_COM_MacFilterCfg.X_CT_COM_MacFilterListCfgObj.6.\","
+                 << "\"MacAddress\":\"" << macLower << "\"}]"
+                 << "}";
+        
+        // Try TWO methods: First with JSON body, then if that fails, try URL params only
+        std::stringstream curlCmd;
+        curlCmd << "C:\\Windows\\System32\\curl.exe -v -X POST \"" << url.str() << "\" "
+                << "-u \"" << username << ":" << password << "\" "
+                << "-H \"Content-Type: json\" "
+                << "-H \"X-Requested-With: XMLHttpRequest\" "
+                << "-H \"Accept: */*\" "
+                << "-H \"Accept-Language: en-GB,en-US;q=0.9,en;q=0.8\" "
+                << "-H \"Referer: http://" << router_ip << "/firewall_macfilter.html\" "
+                << "-H \"Origin: http://" << router_ip << "\" "
+                << "-H \"Connection: keep-alive\" "
+                << "--data-raw \"" << jsonData.str() << "\" "
+                << "--connect-timeout 5 --max-time 10 "
+                << "> curl_debug.txt 2>&1";
+        
+        // Log the curl command for debugging
+        std::string cmdStr = curlCmd.str();
+        std::wstring wideCmdStr(cmdStr.begin(), cmdStr.end());
+        // Don't log password, but log that we're attempting
+        
+        int result = system(curlCmd.str().c_str());
+        
+        // No fallback needed - correct endpoint found
+        
+        return (result == 0);
+    } else {
+        // Remove from blacklist - usually by setting MacAddress to empty or sending delete command
+        std::stringstream jsonData;
+        jsonData << "{\"MacFilterCfg\":{\"fullPath\":\"InternetGatewayDevice.X_CT_COM_MacFilterCfg.\",\"ExcludeMode\":\"FORWARD\"},"
+                 << "\"MacFilterList\":[{\"fullPath\":\"InternetGatewayDevice.X_CT_COM_MacFilterCfg.X_CT_COM_MacFilterListCfgObj.1.\","
+                 << "\"MacAddress\":\"\"}]}";
+        
+        std::stringstream curlCmd;
+        curlCmd << "C:\\Windows\\System32\\curl.exe -s -X POST \"http://" << router_ip << "/uajax/firewall_macfilter_json.htm\" "
+                << "-u \"" << username << ":" << password << "\" "
+                << "-H \"Content-Type: application/json\" "
+                << "-H \"X-Requested-With: XMLHttpRequest\" "
+                << "-d '" << jsonData.str() << "' "
+                << "--connect-timeout 5 --max-time 10 "
+                << "-o NUL 2>&1";
+        
+        return (system(curlCmd.str().c_str()) == 0);
+    }
+}
+
+// Function to block device using Windows Firewall (fallback)
+bool BlockDeviceFirewall(const std::string& ipAddress, const std::wstring& deviceName, bool block) {
+    std::wstringstream command;
+    
+    if (block) {
+        // Create firewall rule to block the IP
+        command << L"netsh advfirewall firewall add rule name=\"WiFi Monitor - Block " 
+                << deviceName << L"\" dir=in action=block remoteip=" 
+                << std::wstring(ipAddress.begin(), ipAddress.end());
+        
+        // Also block outbound
+        std::wstringstream command2;
+        command2 << L"netsh advfirewall firewall add rule name=\"WiFi Monitor - Block " 
+                 << deviceName << L" (Out)\" dir=out action=block remoteip=" 
+                 << std::wstring(ipAddress.begin(), ipAddress.end());
+        
+        // Execute commands
+        int result1 = _wsystem(command.str().c_str());
+        int result2 = _wsystem(command2.str().c_str());
+        
+        return (result1 == 0 && result2 == 0);
+    } else {
+        // Remove firewall rule
+        command << L"netsh advfirewall firewall delete rule name=\"WiFi Monitor - Block " 
+                << deviceName << L"\"";
+        
+        int result = _wsystem(command.str().c_str());
+        return (result == 0);
+    }
+}
 
 // Custom message for scan completion
 #define WM_SCAN_COMPLETE (WM_USER + 1)
@@ -236,6 +364,7 @@ std::wstring GetDeviceTypeFromMAC(BYTE* mac) {
     // Intel
     if (mac[0] == 0x00 && mac[1] == 0x15 && mac[2] == 0x17) return L"Intel NUC";
     if (mac[0] == 0xA4 && mac[1] == 0x34 && mac[2] == 0xD9) return L"Intel Desktop PC";
+    if (mac[0] == 0x3C && mac[1] == 0x6A && mac[2] == 0xA7) return L"Intel Laptop";
     
     // Broadcom
     if (mac[0] == 0x00 && mac[1] == 0x10 && mac[2] == 0x18) return L"Broadcom Device";
@@ -248,7 +377,16 @@ std::wstring GetDeviceTypeFromMAC(BYTE* mac) {
     if (mac[0] == 0xE0 && mac[1] == 0x51 && mac[2] == 0xD8) return L"Huawei/Honor Phone";
     
     // Realtek/Generic (04:D6:AA) - Common in laptops, IoT devices, TVs
-    if (mac[0] == 0x04 && mac[1] == 0xD6 && mac[2] == 0xAA) return L"PC/Laptop/Smart Device";
+    if (mac[0] == 0x04 && mac[1] == 0xD6 && mac[2] == 0xAA) return L"Laptop/Desktop PC";
+    
+    // Unknown MAC (A6:57:18) - Locally administered address (LAA)
+    if (mac[0] == 0xA6 && mac[1] == 0x57 && mac[2] == 0x18) return L"Mobile Device";
+    
+    // Unknown MAC (86:FA:50) - Locally administered address (LAA) 
+    if (mac[0] == 0x86 && mac[1] == 0xFA && mac[2] == 0x50) return L"Mobile Device";
+    
+    // TianYi Router (00:4C:E5)
+    if (mac[0] == 0x00 && mac[1] == 0x4C && mac[2] == 0xE5) return L"TianYi Router";
     
     return L"Unknown Device";
 }
@@ -560,6 +698,13 @@ void StartDeepScan() {
     CreateThread(NULL, 0, DeepScanThreadFunction, NULL, 0, NULL);
 }
 
+// Structure to store device info for sorting
+struct DeviceInfo {
+    std::wstring name;
+    std::wstring details;
+    int priority; // For sorting: 0=router, 1=this PC, 2=others
+};
+
 // Function to scan connected devices on the network using ARP table
 void ScanConnectedDevices() {
     AddLog(L"Reading ARP table for discovered devices...");
@@ -601,6 +746,37 @@ void ScanConnectedDevices() {
     
     if (dwRetVal == NO_ERROR) {
         int deviceCount = 0;
+        std::vector<DeviceInfo> devices;
+        
+        // Add "This PC" manually (our own PC won't be in ARP table)
+        std::string localWiFiIP = GetWiFiAdapterIP();
+        if (!localWiFiIP.empty()) {
+            // Get local hostname
+            char hostname[256];
+            gethostname(hostname, sizeof(hostname));
+            
+            // Convert to wide string
+            std::wstring wideHostname;
+            int len = MultiByteToWideChar(CP_UTF8, 0, hostname, -1, NULL, 0);
+            if (len > 0) {
+                wchar_t* buffer = new wchar_t[len];
+                MultiByteToWideChar(CP_UTF8, 0, hostname, -1, buffer, len);
+                wideHostname = buffer;
+                delete[] buffer;
+            }
+            
+            DeviceInfo thisPC;
+            thisPC.priority = 1; // Right after router
+            thisPC.name = L"This PC - " + wideHostname + L" (Intel Laptop)";
+            
+            std::wstringstream pcDetails;
+            pcDetails << L"  IP: " << std::wstring(localWiFiIP.begin(), localWiFiIP.end()) 
+                     << L"  |  MAC: (Your WiFi Adapter)";
+            thisPC.details = pcDetails.str();
+            
+            devices.push_back(thisPC);
+            deviceCount++;
+        }
         
         for (DWORD i = 0; i < pIpNetTable->dwNumEntries; i++) {
             MIB_IPNETROW* pRow = &pIpNetTable->table[i];
@@ -668,9 +844,20 @@ void ScanConnectedDevices() {
                                         pRow->bPhysAddr[1] == 0x15 && 
                                         pRow->bPhysAddr[2] == 0x5D);
                 
+                // Check if this is our own PC's WiFi adapter
+                std::string localWiFiIP = GetWiFiAdapterIP();
+                bool isThisPC = !localWiFiIP.empty() && (strcmp(ipStr, localWiFiIP.c_str()) == 0);
+                
                 if (isVirtualAdapter) {
                     // This is a Hyper-V virtual adapter (usually WSL or VM)
                     deviceLine1 << L"This PC - Virtual Adapter (WSL/Hyper-V)";
+                } else if (isThisPC) {
+                    // This is our own PC's WiFi adapter
+                    if (hasHostname) {
+                        deviceLine1 << L"This PC - " << hostname << L" (" << deviceType << L")";
+                    } else {
+                        deviceLine1 << L"This PC (" << deviceType << L")";
+                    }
                 } else if (isGateway) {
                     // This is the router/gateway
                     if (hasHostname) {
@@ -678,35 +865,65 @@ void ScanConnectedDevices() {
                     } else {
                         deviceLine1 << L"WiFi Router / Gateway";
                     }
-                } else if (hasHostname && hasDeviceType) {
-                    // Show hostname with device type in parentheses
-                    deviceLine1 << hostname << L" (" << deviceType << L")";
-                } else if (hasHostname) {
-                    // Show only hostname
-                    deviceLine1 << hostname;
-                } else if (hasDeviceType) {
-                    // Show device type (e.g., "Samsung Phone", "Dell Laptop")
-                    deviceLine1 << deviceType;
                 } else {
-                    // Show IP as fallback
-                    deviceLine1 << L"Unknown Device";
+                    // For all other devices, prioritize hostname over device type
+                    if (hasHostname) {
+                        // Show hostname first (this is the device name set by the user)
+                        if (hasDeviceType) {
+                            deviceLine1 << hostname << L" (" << deviceType << L")";
+                        } else {
+                            deviceLine1 << hostname;
+                        }
+                    } else if (hasDeviceType) {
+                        // Show device type if no hostname
+                        deviceLine1 << deviceType;
+                    } else {
+                        // Show IP as fallback
+                        deviceLine1 << L"Unknown Device";
+                    }
                 }
                 
                 // Second line: IP and MAC
                 deviceLine2 << L"  IP: " << std::wstring(ipStr, ipStr + strlen(ipStr)) 
                            << L"  |  MAC: " << macStream.str();
                 
+                // Determine priority for sorting
+                int priority = 2; // Default: other devices
+                if (isGateway) {
+                    priority = 0; // Router first
+                } else if (isThisPC || isVirtualAdapter) {
+                    priority = 1; // This PC second
+                }
+                
+                // Store device info
+                DeviceInfo device;
+                device.priority = priority;
+                
                 // Check if device is blocked
                 if (IsDeviceBlocked(macStream.str())) {
-                    std::wstringstream blockedLine1;
-                    blockedLine1 << L"[BLOCKED] " << deviceLine1.str();
-                    SendMessage(g_hWndDevicesList, LB_ADDSTRING, 0, (LPARAM)blockedLine1.str().c_str());
+                    device.name = L"[BLOCKED] " + deviceLine1.str();
                 } else {
-                    SendMessage(g_hWndDevicesList, LB_ADDSTRING, 0, (LPARAM)deviceLine1.str().c_str());
+                    device.name = deviceLine1.str();
                 }
-                SendMessage(g_hWndDevicesList, LB_ADDSTRING, 0, (LPARAM)deviceLine2.str().c_str());
+                device.details = deviceLine2.str();
+                
+                devices.push_back(device);
                 deviceCount++;
             }
+        }
+        
+        // Sort devices: first by priority, then by name
+        std::sort(devices.begin(), devices.end(), [](const DeviceInfo& a, const DeviceInfo& b) {
+            if (a.priority != b.priority) {
+                return a.priority < b.priority; // Lower priority number comes first
+            }
+            return a.name < b.name; // Then alphabetically by name
+        });
+        
+        // Display sorted devices
+        for (const auto& device : devices) {
+            SendMessage(g_hWndDevicesList, LB_ADDSTRING, 0, (LPARAM)device.name.c_str());
+            SendMessage(g_hWndDevicesList, LB_ADDSTRING, 0, (LPARAM)device.details.c_str());
         }
         
         std::wstringstream logMsg;
@@ -917,19 +1134,25 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
             // Create refresh devices button (proper spacing from listbox)
             CreateWindowW(L"BUTTON", L"Quick Scan",
                          WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
-                         385, 268, 120, 32,
+                         385, 238, 90, 28,
                          hwnd, (HMENU)IDC_REFRESH_DEVICES_BUTTON, NULL, NULL);
             
             // Create deep scan button
             CreateWindowW(L"BUTTON", L"Deep Scan",
                          WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
-                         510, 268, 120, 32,
+                         480, 238, 90, 28,
                          hwnd, (HMENU)IDC_DEEP_SCAN_BUTTON, NULL, NULL);
+            
+            // Create block selected button
+            CreateWindowW(L"BUTTON", L"Block Selected",
+                         WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
+                         575, 238, 95, 28,
+                         hwnd, (HMENU)IDC_BLOCK_SELECTED_BUTTON, NULL, NULL);
             
             // Create copy devices button
             CreateWindowW(L"BUTTON", L"Copy List",
                          WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
-                         635, 268, 125, 32,
+                         675, 238, 85, 28,
                          hwnd, (HMENU)IDC_COPY_DEVICES_BUTTON, NULL, NULL);
             
             // Create buttons (more spacing between sections)
@@ -1075,6 +1298,180 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                         AddLog(L"Scan already in progress, please wait...");
                     }
                     break;
+                
+                case IDC_BLOCK_SELECTED_BUTTON: {
+                    // Get selected device from list
+                    int selected = (int)SendMessage(g_hWndDevicesList, LB_GETCURSEL, 0, 0);
+                    if (selected == LB_ERR) {
+                        MessageBoxW(hwnd, L"Please select a device from the list first!", 
+                                   L"No Device Selected", MB_OK | MB_ICONWARNING);
+                        AddLog(L"No device selected for blocking");
+                        break;
+                    }
+                    
+                    // Get the text of selected item and the next line
+                    int len = (int)SendMessage(g_hWndDevicesList, LB_GETTEXTLEN, selected, 0);
+                    std::wstring selectedText;
+                    std::wstring deviceName;
+                    std::wstring mac;
+                    std::wstring ip;
+                    
+                    if (len > 0) {
+                        wchar_t* buffer = new wchar_t[len + 1];
+                        SendMessage(g_hWndDevicesList, LB_GETTEXT, selected, (LPARAM)buffer);
+                        selectedText = buffer;
+                        deviceName = buffer; // Store device name
+                        delete[] buffer;
+                        
+                        // Try to extract MAC from current line
+                        mac = ExtractMACFromLine(selectedText);
+                        ip = ExtractIPFromLine(selectedText);
+                        
+                        // If not found, check next line
+                        if (mac.empty() && selected + 1 < (int)SendMessage(g_hWndDevicesList, LB_GETCOUNT, 0, 0)) {
+                            len = (int)SendMessage(g_hWndDevicesList, LB_GETTEXTLEN, selected + 1, 0);
+                            if (len > 0) {
+                                buffer = new wchar_t[len + 1];
+                                SendMessage(g_hWndDevicesList, LB_GETTEXT, selected + 1, (LPARAM)buffer);
+                                mac = ExtractMACFromLine(buffer);
+                                ip = ExtractIPFromLine(buffer);
+                                delete[] buffer;
+                            }
+                        }
+                    }
+                    
+                    if (mac.empty() || mac == L"(Your WiFi Adapter)" || ip.empty()) {
+                        MessageBoxW(hwnd, L"Cannot block this device (Router or This PC)!", 
+                                   L"Invalid Selection", MB_OK | MB_ICONERROR);
+                        break;
+                    }
+                    
+                    // Convert IP to string
+                    std::string ipStr(ip.begin(), ip.end());
+                    
+                    // Check if already blocked
+                    if (IsDeviceBlocked(mac)) {
+                        // Unblock it
+                        for (auto it = g_blockedDevices.begin(); it != g_blockedDevices.end(); ++it) {
+                            if (*it == mac) {
+                                g_blockedDevices.erase(it);
+                                break;
+                            }
+                        }
+                        
+                        // Convert MAC to string for router API
+                        std::string macStr(mac.begin(), mac.end());
+                        
+                        // Try to unblock on router first
+                        AddLog(L"Unblocking device on router: " + deviceName);
+                        bool routerSuccess = BlockDeviceOnRouter(macStr, false);
+                        
+                        if (routerSuccess) {
+                            AddLog(L"✓ Device unblocked on router: " + mac);
+                            MessageBoxW(hwnd, 
+                                L"Device has been unblocked on WiFi router!\n\n"
+                                L"✓ Device can now reconnect to WiFi\n"
+                                L"✓ Device can access network normally",
+                                L"Device Unblocked", MB_OK | MB_ICONINFORMATION);
+                        } else {
+                            // Fallback to removing Windows Firewall rule
+                            AddLog(L"⚠ Router unblocking failed, removing firewall rule...");
+                            bool firewallSuccess = BlockDeviceFirewall(ipStr, deviceName, false);
+                            
+                            if (firewallSuccess) {
+                                AddLog(L"✓ Firewall rule removed: " + mac);
+                                MessageBoxW(hwnd, 
+                                    L"Windows Firewall block removed.\n\n"
+                                    L"⚠ If device was blocked on router, please unblock manually at:\n"
+                                    L"http://192.168.1.1",
+                                    L"Partial Unblock", MB_OK | MB_ICONWARNING);
+                            } else {
+                                AddLog(L"⚠ Failed to unblock device");
+                                MessageBoxW(hwnd, 
+                                    L"Failed to unblock device!\n\n"
+                                    L"Please manually unblock in router settings or run app as Administrator.",
+                                    L"Unblock Failed", MB_OK | MB_ICONWARNING);
+                            }
+                        }
+                    } else {
+                        // Block it
+                        int result = MessageBoxW(hwnd, 
+                            L"This will block network traffic between your PC and this device using Windows Firewall.\n\n"
+                            L"⚠ Important:\n"
+                            L"• Requires Administrator privileges\n"
+                            L"• Only blocks on YOUR PC (device can still access router/internet)\n"
+                            L"• To block device from WiFi entirely, configure your router\n\n"
+                            L"Continue?",
+                            L"Confirm Block", MB_YESNO | MB_ICONQUESTION);
+                        
+                        if (result == IDYES) {
+                            g_blockedDevices.push_back(mac);
+                            
+                            // Convert MAC to string for router API
+                            std::string macStr(mac.begin(), mac.end());
+                            
+                            // Try to block on router first
+                            AddLog(L"Blocking device on router: " + deviceName + L" (" + mac + L")");
+                            bool routerSuccess = BlockDeviceOnRouter(macStr, true);
+                            
+                            if (routerSuccess) {
+                                AddLog(L"✓ Device blocked on router: " + mac);
+                                MessageBoxW(hwnd, 
+                                    L"Device blocked successfully on WiFi router!\n\n"
+                                    L"✓ Device disconnected from WiFi\n"
+                                    L"✓ Device cannot access network\n"
+                                    L"✓ All devices on network are protected\n\n"
+                                    L"The device will not be able to reconnect until unblocked.",
+                                    L"Device Blocked", MB_OK | MB_ICONINFORMATION);
+                            } else {
+                                // Fallback to Windows Firewall
+                                AddLog(L"⚠ Router API blocking failed - opening router admin page...");
+                                
+                                // Copy MAC address to clipboard for easy pasting
+                                if (OpenClipboard(hwnd)) {
+                                    EmptyClipboard();
+                                    size_t macLen = (mac.length() + 1) * sizeof(wchar_t);
+                                    HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, macLen);
+                                    if (hMem) {
+                                        memcpy(GlobalLock(hMem), mac.c_str(), macLen);
+                                        GlobalUnlock(hMem);
+                                        SetClipboardData(CF_UNICODETEXT, hMem);
+                                    }
+                                    CloseClipboard();
+                                }
+                                
+                                // Open router admin page
+                                ShellExecute(NULL, L"open", L"http://192.168.1.1/firewall_macfilter.html", NULL, NULL, SW_SHOWNORMAL);
+                                
+                                // Show instructions
+                                std::wstringstream msg;
+                                msg << L"Router API Not Available\n\n"
+                                    << L"To block this device from using WiFi:\n\n"
+                                    << L"1. Router admin page is opening in your browser\n"
+                                    << L"2. MAC Address copied to clipboard: " << mac << L"\n"
+                                    << L"3. Add the MAC to the filter list and save\n\n"
+                                    << L"Device: " << deviceName << L"\n"
+                                    << L"IP: " << std::wstring(ipStr, ipStr + strlen(ipStr));
+                                
+                                MessageBoxW(hwnd, msg.str().c_str(),
+                                    L"Manual Router Configuration Required", MB_OK | MB_ICONINFORMATION);
+                                } else {
+                                    AddLog(L"✗ Both router and firewall blocking failed");
+                                    MessageBoxW(hwnd, 
+                                        L"Failed to block device!\n\n"
+                                        L"✗ Router API failed\n"
+                                        L"✗ Windows Firewall failed (need admin rights)\n\n"
+                                        L"Please run as Administrator or configure router manually.",
+                                        L"Block Failed", MB_OK | MB_ICONERROR);
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Refresh the device list to show [BLOCKED] tag
+                    ScanConnectedDevices();
+                    break;
+                }
                 
                 case IDC_COPY_DEVICES_BUTTON: {
                     // Get all items from the device list

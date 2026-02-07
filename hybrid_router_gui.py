@@ -1,0 +1,435 @@
+#!/usr/bin/env python3
+"""
+Hybrid Router Manager - C++ for device listing, Python for blocking
+Best of both worlds!
+"""
+
+import tkinter as tk
+from tkinter import ttk, messagebox, scrolledtext
+import threading
+import subprocess
+import json
+import os
+from router_manager import RouterManager
+from datetime import datetime
+
+class HybridRouterGUI:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("🌐 Hybrid Router Manager - C++ Scanner + Python Blocker")
+        self.root.geometry("1000x700")
+        self.root.configure(bg='#2b2b2b')
+        
+        # Router manager for blocking
+        self.router = RouterManager()
+        
+        # Device storage
+        self.devices = []
+        self.blocked_macs = []
+        
+        # Create UI
+        self.create_widgets()
+        
+        # Auto-scan on startup
+        self.root.after(1000, self.scan_devices)
+    
+    def create_widgets(self):
+        """Create all GUI widgets"""
+        # Main container
+        main_frame = tk.Frame(self.root, bg='#2b2b2b')
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Title
+        title = tk.Label(main_frame, 
+                        text="🌐 Hybrid Router Manager\nC++ Device Scanner + Python Router Blocker", 
+                        font=('Arial', 18, 'bold'), bg='#2b2b2b', fg='#00ff00')
+        title.pack(pady=10)
+        
+        # Status
+        self.status_label = tk.Label(main_frame, text="Status: Ready", 
+                                     font=('Arial', 10), bg='#2b2b2b', fg='#00ff00')
+        self.status_label.pack()
+        
+        # Main content area
+        content_frame = tk.Frame(main_frame, bg='#2b2b2b')
+        content_frame.pack(fill=tk.BOTH, expand=True, pady=10)
+        
+        # Left side - Device list
+        left_frame = tk.Frame(content_frame, bg='#2b2b2b')
+        left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
+        
+        tk.Label(left_frame, text="📱 Connected Devices (ARP Scan)", 
+                bg='#2b2b2b', fg='#00ff00', font=('Arial', 12, 'bold')).pack()
+        
+        # Device treeview
+        tree_frame = tk.Frame(left_frame, bg='#2b2b2b')
+        tree_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        
+        self.devices_tree = ttk.Treeview(tree_frame, 
+                                        columns=('IP', 'MAC', 'Type', 'Status'),
+                                        show='tree headings', height=15)
+        
+        self.devices_tree.heading('#0', text='Device Name')
+        self.devices_tree.heading('IP', text='IP Address')
+        self.devices_tree.heading('MAC', text='MAC Address')
+        self.devices_tree.heading('Type', text='Type')
+        self.devices_tree.heading('Status', text='Status')
+        
+        self.devices_tree.column('#0', width=200)
+        self.devices_tree.column('IP', width=120)
+        self.devices_tree.column('MAC', width=140)
+        self.devices_tree.column('Type', width=120)
+        self.devices_tree.column('Status', width=80)
+        
+        scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.devices_tree.yview)
+        self.devices_tree.configure(yscrollcommand=scrollbar.set)
+        self.devices_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Buttons
+        btn_frame = tk.Frame(left_frame, bg='#2b2b2b')
+        btn_frame.pack(fill=tk.X, pady=5)
+        
+        tk.Button(btn_frame, text="🔄 Scan Devices", command=self.scan_devices,
+                 bg='#0066cc', fg='white', font=('Arial', 10, 'bold'),
+                 padx=15, pady=8).pack(side=tk.LEFT, padx=5)
+        
+        tk.Button(btn_frame, text="🚫 Block Selected (Python)", command=self.block_selected,
+                 bg='#cc0000', fg='white', font=('Arial', 10, 'bold'),
+                 padx=15, pady=8).pack(side=tk.LEFT, padx=5)
+        
+        tk.Button(btn_frame, text="✅ Unblock Selected", command=self.unblock_selected,
+                 bg='#00aa00', fg='white', font=('Arial', 10, 'bold'),
+                 padx=15, pady=8).pack(side=tk.LEFT, padx=5)
+        
+        # Manual MAC entry
+        manual_frame = tk.Frame(left_frame, bg='#2b2b2b')
+        manual_frame.pack(fill=tk.X, pady=5)
+        
+        tk.Label(manual_frame, text="Manual MAC:", bg='#2b2b2b', fg='#00ff00',
+                font=('Arial', 10)).pack(side=tk.LEFT, padx=5)
+        
+        self.manual_mac_entry = tk.Entry(manual_frame, font=('Courier', 10), width=20)
+        self.manual_mac_entry.pack(side=tk.LEFT, padx=5)
+        self.manual_mac_entry.insert(0, "AA:BB:CC:DD:EE:FF")
+        
+        tk.Button(manual_frame, text="🚫 Block", command=self.block_manual,
+                 bg='#cc0000', fg='white', font=('Arial', 9, 'bold'),
+                 padx=10, pady=5).pack(side=tk.LEFT, padx=2)
+        
+        tk.Button(manual_frame, text="✅ Unblock", command=self.unblock_manual,
+                 bg='#00aa00', fg='white', font=('Arial', 9, 'bold'),
+                 padx=10, pady=5).pack(side=tk.LEFT, padx=2)
+        
+        # Right side - Blocked list
+        right_frame = tk.Frame(content_frame, bg='#2b2b2b')
+        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=5)
+        
+        tk.Label(right_frame, text="🚫 Blocked Devices (Python Router API)", 
+                bg='#2b2b2b', fg='#ff0000', font=('Arial', 12, 'bold')).pack()
+        
+        self.blocked_listbox = tk.Listbox(right_frame, bg='#1b1b1b', fg='#ff0000',
+                                          font=('Courier', 10), height=15)
+        self.blocked_listbox.pack(fill=tk.BOTH, expand=True, pady=5)
+        
+        tk.Button(right_frame, text="🔄 Refresh Blocked List", command=self.refresh_blocked,
+                 bg='#666666', fg='white', font=('Arial', 10, 'bold'),
+                 padx=15, pady=8).pack(pady=5)
+        
+        # Bottom - Logs
+        log_frame = tk.Frame(main_frame, bg='#2b2b2b')
+        log_frame.pack(fill=tk.BOTH, expand=True, pady=10)
+        
+        tk.Label(log_frame, text="📋 Activity Log", bg='#2b2b2b', fg='#00ff00',
+                font=('Arial', 12, 'bold')).pack()
+        
+        self.log_text = scrolledtext.ScrolledText(log_frame, height=10, 
+                                                  bg='#1b1b1b', fg='#00ff00',
+                                                  font=('Courier', 9))
+        self.log_text.pack(fill=tk.BOTH, expand=True)
+    
+    def log(self, message, level="INFO"):
+        """Add message to log"""
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        colors = {"INFO": "#00ff00", "SUCCESS": "#00ff00", "ERROR": "#ff0000", "WARNING": "#ffaa00"}
+        
+        log_entry = f"[{timestamp}] [{level}] {message}\n"
+        self.log_text.insert(tk.END, log_entry)
+        self.log_text.see(tk.END)
+        self.log_text.update()
+    
+    def update_status(self, text):
+        """Update status label"""
+        self.status_label.config(text=f"Status: {text}")
+        self.status_label.update()
+    
+    def run_in_thread(self, func, *args):
+        """Run function in background thread"""
+        thread = threading.Thread(target=func, args=args, daemon=True)
+        thread.start()
+    
+    def scan_devices(self):
+        """Scan devices using Python Router API"""
+        self.log("🔍 Scanning devices from router...", "INFO")
+        self.update_status("Scanning network...")
+        self.run_in_thread(self._scan_devices_thread)
+    
+    def _scan_devices_thread(self):
+        """Background thread for scanning"""
+        try:
+            # Note: Router API /uajax/landevice_json.htm requires ADMIN access
+            # User account only has limited access, so we use ARP scanning
+            self.log("⚠ Note: User account has limited router API access", "WARNING")
+            self.log("Using network ARP scan to find devices...", "INFO")
+            
+            # Use ARP scanner (works without admin access)
+            self._scan_devices_arp()
+            
+        except Exception as e:
+            self.log(f"✗ Scan error: {e}", "ERROR")
+    
+    def _scan_devices_arp(self):
+        """Scan devices using ARP table"""
+        try:
+            if not os.path.exists('device_scanner.exe'):
+                self.log("⚠ Building C++ ARP scanner...", "WARNING")
+                
+                # Try to build it
+                result = subprocess.run(['g++', 'device_scanner_cli.cpp', '-o', 'device_scanner.exe',
+                                       '-liphlpapi', '-lws2_32', '-static'],
+                                      capture_output=True, text=True, timeout=30)
+                
+                if result.returncode != 0:
+                    self.log("✗ Failed to build scanner", "ERROR")
+                    self.log("Error: g++ (MinGW) not found or build error", "ERROR")
+                    self.root.after(0, lambda: messagebox.showwarning("Scanner Not Available",
+                        "C++ device scanner could not be built.\n\n"
+                        "Device scanning requires admin router access OR g++ (MinGW) to build the ARP scanner.\n\n"
+                        "You can still use block/unblock features!"))
+                    return
+            
+            self.log("Running ARP scanner...", "INFO")
+            result = subprocess.run(['device_scanner.exe'], 
+                                  capture_output=True, text=True, timeout=10)
+            
+            if result.returncode == 0:
+                devices = json.loads(result.stdout)
+                self.devices = devices
+                self.log(f"✓ Found {len(devices)} device(s) via ARP scan", "SUCCESS")
+                self.root.after(0, self._update_device_tree)
+                self.root.after(0, lambda: self.update_status(f"Found {len(devices)} devices"))
+            else:
+                self.log(f"✗ Scanner error: {result.stderr}", "ERROR")
+            
+        except subprocess.TimeoutExpired:
+            self.log("✗ Scanner timeout", "ERROR")
+        except json.JSONDecodeError as e:
+            self.log(f"✗ Failed to parse scanner output", "ERROR")
+        except Exception as e:
+            self.log(f"✗ ARP scan failed: {e}", "ERROR")
+    
+    def _update_device_tree(self):
+        """Update device treeview (main thread only)"""
+        # Clear current items
+        for item in self.devices_tree.get_children():
+            self.devices_tree.delete(item)
+        
+        # Add devices
+        for device in self.devices:
+            hostname = device.get('hostname', '')
+            if not hostname:
+                if device.get('is_router'):
+                    hostname = "WiFi Router"
+                else:
+                    hostname = f"Device {device['ip'].split('.')[-1]}"
+            
+            # Check if blocked
+            mac = device['mac']
+            is_blocked = mac in self.blocked_macs
+            status = "🚫 BLOCKED" if is_blocked else "✓ Active"
+            
+            # Add to tree
+            self.devices_tree.insert('', tk.END, text=hostname,
+                                    values=(device['ip'], device['mac'], 
+                                           device['type'], status))
+    
+    def block_selected(self):
+        """Block selected device using Python router API"""
+        selection = self.devices_tree.selection()
+        if not selection:
+            messagebox.showwarning("No Selection", "Please select a device to block")
+            return
+        
+        # Get device info
+        item = self.devices_tree.item(selection[0])
+        hostname = item['text']
+        mac = item['values'][1]
+        ip = item['values'][0]
+        
+        # Check if router
+        if ip in ['192.168.1.1', '192.168.0.1']:
+            messagebox.showerror("Cannot Block", "Cannot block the router!")
+            return
+        
+        # Confirm
+        confirm = messagebox.askyesno("Confirm Block",
+                                      f"Block device?\n\n"
+                                      f"Name: {hostname}\n"
+                                      f"MAC: {mac}\n"
+                                      f"IP: {ip}\n\n"
+                                      f"This will disconnect the device from WiFi.")
+        
+        if confirm:
+            self.log(f"🚫 Blocking {hostname} ({mac})...", "INFO")
+            self.run_in_thread(self._block_device_thread, mac, hostname)
+    
+    def _block_device_thread(self, mac, hostname):
+        """Block device in background"""
+        # Login first
+        if not self.router.logged_in:
+            self.log("Logging into router...", "INFO")
+            if not self.router.login():
+                self.log("✗ Login failed!", "ERROR")
+                self.root.after(0, lambda: messagebox.showerror("Error", "Failed to login to router!"))
+                return
+        
+        # Block device
+        success, msg = self.router.block_device(mac)
+        
+        if success:
+            self.log(f"✓ {msg}", "SUCCESS")
+            self.blocked_macs.append(mac)
+            
+            # Update UI
+            self.root.after(0, self._update_device_tree)
+            self.root.after(0, self.refresh_blocked)
+            self.root.after(0, lambda: messagebox.showinfo("Success", 
+                f"Device blocked!\n\n{hostname}\nMAC: {mac}\n\n"
+                "The device has been disconnected from WiFi."))
+        else:
+            self.log(f"✗ {msg}", "ERROR")
+            self.root.after(0, lambda: messagebox.showerror("Error", f"Failed to block device:\n{msg}"))
+    
+    def unblock_selected(self):
+        """Unblock selected device"""
+        selection = self.devices_tree.selection()
+        if not selection:
+            messagebox.showwarning("No Selection", "Please select a blocked device")
+            return
+        
+        item = self.devices_tree.item(selection[0])
+        hostname = item['text']
+        mac = item['values'][1]
+        
+        if mac not in self.blocked_macs:
+            messagebox.showinfo("Not Blocked", "This device is not blocked")
+            return
+        
+        confirm = messagebox.askyesno("Confirm Unblock",
+                                      f"Unblock device?\n\n"
+                                      f"Name: {hostname}\n"
+                                      f"MAC: {mac}")
+        
+        if confirm:
+            self.log(f"✅ Unblocking {hostname} ({mac})...", "INFO")
+            self.run_in_thread(self._unblock_device_thread, mac, hostname)
+    
+    def _unblock_device_thread(self, mac, hostname):
+        """Unblock device in background"""
+        success, msg = self.router.unblock_device(mac)
+        
+        if success:
+            self.log(f"✓ {msg}", "SUCCESS")
+            if mac in self.blocked_macs:
+                self.blocked_macs.remove(mac)
+            
+            self.root.after(0, self._update_device_tree)
+            self.root.after(0, self.refresh_blocked)
+            self.root.after(0, lambda: messagebox.showinfo("Success",
+                f"Device unblocked!\n\n{hostname}\nMAC: {mac}"))
+        else:
+            self.log(f"✗ {msg}", "ERROR")
+            self.root.after(0, lambda: messagebox.showerror("Error", f"Failed to unblock:\n{msg}"))
+    
+    def block_manual(self):
+        """Block device by manually entered MAC"""
+        mac = self.manual_mac_entry.get().strip().upper()
+        
+        if not mac or len(mac) < 12:
+            messagebox.showwarning("Invalid MAC", "Please enter a valid MAC address")
+            return
+        
+        confirm = messagebox.askyesno("Confirm Block",
+                                      f"Block device with MAC address?\n\n{mac}\n\n"
+                                      f"This will disconnect the device from WiFi.")
+        
+        if confirm:
+            self.log(f"🚫 Blocking {mac}...", "INFO")
+            self.run_in_thread(self._block_device_thread, mac, f"Manual Entry ({mac})")
+    
+    def unblock_manual(self):
+        """Unblock device by manually entered MAC"""
+        mac = self.manual_mac_entry.get().strip().upper()
+        
+        if not mac or len(mac) < 12:
+            messagebox.showwarning("Invalid MAC", "Please enter a valid MAC address")
+            return
+        
+        confirm = messagebox.askyesno("Confirm Unblock",
+                                      f"Unblock device with MAC address?\n\n{mac}")
+        
+        if confirm:
+            self.log(f"✅ Unblocking {mac}...", "INFO")
+            self.run_in_thread(self._unblock_device_thread, mac, f"Manual Entry ({mac})")
+    
+    def refresh_blocked(self):
+        """Refresh blocked devices list from router"""
+        self.log("Refreshing blocked devices list...", "INFO")
+        self.run_in_thread(self._refresh_blocked_thread)
+    
+    def _refresh_blocked_thread(self):
+        """Background thread for refreshing blocked list"""
+        if not self.router.logged_in:
+            if not self.router.login():
+                self.log("✗ Login failed", "ERROR")
+                return
+        
+        success, blocked = self.router.get_mac_filter_list()
+        
+        if success:
+            self.blocked_macs = [device['mac'] for device in blocked]
+            self.log(f"✓ Found {len(self.blocked_macs)} blocked device(s)", "SUCCESS")
+            
+            # Update UI
+            self.root.after(0, self._update_blocked_listbox)
+            self.root.after(0, self._update_device_tree)
+        else:
+            self.log(f"✗ Failed to get blocked list: {blocked}", "ERROR")
+    
+    def _update_blocked_listbox(self):
+        """Update blocked devices listbox"""
+        self.blocked_listbox.delete(0, tk.END)
+        
+        if not self.blocked_macs:
+            self.blocked_listbox.insert(tk.END, "No devices blocked")
+        else:
+            for i, mac in enumerate(self.blocked_macs, 1):
+                # Find device name from scanned list
+                device_name = "Unknown Device"
+                for device in self.devices:
+                    if device['mac'] == mac:
+                        device_name = device.get('hostname', '') or device['type']
+                        break
+                
+                self.blocked_listbox.insert(tk.END, f"{i}. {device_name}")
+                self.blocked_listbox.insert(tk.END, f"   MAC: {mac}")
+
+
+def main():
+    root = tk.Tk()
+    app = HybridRouterGUI(root)
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    main()

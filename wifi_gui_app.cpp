@@ -5,10 +5,15 @@
 #include <ctime>
 
 #ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #include <windows.h>
 #include <wlanapi.h>
+#include <iphlpapi.h>
 #pragma comment(lib, "wlanapi.lib")
 #pragma comment(lib, "ole32.lib")
+#pragma comment(lib, "iphlpapi.lib")
+#pragma comment(lib, "ws2_32.lib")
 #endif
 
 // Simple Console-based GUI for WiFi Protection Testing
@@ -72,12 +77,13 @@ public:
         std::cout << "Available Actions:\n";
         std::cout << "-------------------\n";
         std::cout << "[1] Scan for WiFi Networks\n";
-        std::cout << "[2] Connect to Network\n";
-        std::cout << "[3] Toggle Protection (Current: " 
+        std::cout << "[2] Scan Connected Devices (NEW!)\n";
+        std::cout << "[3] Connect to Network\n";
+        std::cout << "[4] Toggle Protection (Current: " 
                   << (protectionEnabled ? "ON" : "OFF") << ")\n";
-        std::cout << "[4] View Protection Logs\n";
-        std::cout << "[5] Test Protection Features\n";
-        std::cout << "[6] Network Statistics\n";
+        std::cout << "[5] View Protection Logs\n";
+        std::cout << "[6] Test Protection Features\n";
+        std::cout << "[7] Network Statistics\n";
         std::cout << "[0] Exit\n\n";
         std::cout << "Enter your choice: ";
     }
@@ -267,6 +273,180 @@ public:
         std::cin.get();
     }
 
+    std::string GetDeviceType(BYTE* mac) {
+        // Apple devices
+        if (mac[0] == 0xF0 && mac[1] == 0x18 && mac[2] == 0x98) return "iPhone/iPad";
+        if (mac[0] == 0x3C && mac[1] == 0x22 && mac[2] == 0xFB) return "Apple iPhone";
+        if (mac[0] == 0x00 && mac[1] == 0x1E && mac[2] == 0xC2) return "Apple MacBook";
+        if (mac[0] == 0xA4 && mac[1] == 0xD1 && mac[2] == 0x8C) return "Apple MacBook Pro";
+        
+        // Samsung devices
+        if (mac[0] == 0x28 && mac[1] == 0xF0 && mac[2] == 0x76) return "Samsung Phone";
+        if (mac[0] == 0xCC && mac[1] == 0x2D && mac[2] == 0xB7) return "Samsung Phone";
+        if (mac[0] == 0xE8 && mac[1] == 0x50 && mac[2] == 0x8B) return "Samsung Smart TV";
+        
+        // Huawei
+        if (mac[0] == 0xE0 && mac[1] == 0x51 && mac[2] == 0xD8) return "Huawei/Honor Phone";
+        if (mac[0] == 0xE0 && mac[1] == 0xDB && mac[2] == 0x55) return "Huawei Router";
+        
+        // Xiaomi
+        if (mac[0] == 0x34 && mac[1] == 0xCE && mac[2] == 0x00) return "Xiaomi Phone";
+        if (mac[0] == 0xF8 && mac[1] == 0x28 && mac[2] == 0x19) return "Xiaomi Router";
+        
+        // TP-Link
+        if (mac[0] == 0xF4 && mac[1] == 0xF2 && mac[2] == 0x6D) return "TP-Link Router";
+        
+        // Dell
+        if (mac[0] == 0x18 && mac[1] == 0x03 && mac[2] == 0x73) return "Dell Laptop";
+        if (mac[0] == 0xD4 && mac[1] == 0xBE && mac[2] == 0xD9) return "Dell Laptop";
+        
+        // HP
+        if (mac[0] == 0xD4 && mac[1] == 0x85 && mac[2] == 0x64) return "HP Printer";
+        
+        // Intel/Realtek
+        if (mac[0] == 0x04 && mac[1] == 0xD6 && mac[2] == 0xAA) return "Laptop/Desktop PC";
+        if (mac[0] == 0x3C && mac[1] == 0x6A && mac[2] == 0xA7) return "Intel Laptop";
+        
+        // China Telecom Router
+        if (mac[0] == 0x00 && mac[1] == 0x4C && mac[2] == 0xE5) return "TianYi Router";
+        
+        // Locally administered (mobile devices with random MAC)
+        if ((mac[0] & 0x02) == 0x02) return "Mobile Device";
+        
+        return "Unknown Device";
+    }
+
+    void scanConnectedDevices() {
+#ifdef _WIN32
+        std::cout << "\n[INFO] Scanning connected devices on your network...\n\n";
+        
+        // Initialize Winsock
+        WSADATA wsaData;
+        WSAStartup(MAKEWORD(2, 2), &wsaData);
+        
+        // Get ARP table
+        PMIB_IPNETTABLE pIpNetTable = NULL;
+        DWORD dwSize = 0;
+        DWORD dwRetVal = GetIpNetTable(NULL, &dwSize, FALSE);
+        
+        if (dwRetVal == ERROR_INSUFFICIENT_BUFFER) {
+            pIpNetTable = (MIB_IPNETTABLE*)malloc(dwSize);
+        }
+        
+        if (pIpNetTable == NULL) {
+            std::cout << "[ERROR] Failed to allocate memory for device scan\n";
+            WSACleanup();
+            Sleep(2000);
+            return;
+        }
+        
+        dwRetVal = GetIpNetTable(pIpNetTable, &dwSize, FALSE);
+        
+        if (dwRetVal == NO_ERROR) {
+            std::cout << "=== CONNECTED DEVICES ===\n\n";
+            int deviceCount = 0;
+            
+            for (DWORD i = 0; i < pIpNetTable->dwNumEntries; i++) {
+                MIB_IPNETROW* pRow = &pIpNetTable->table[i];
+                
+                // Convert IP
+                struct in_addr ipAddr;
+                ipAddr.S_un.S_addr = pRow->dwAddr;
+                char ipStr[INET_ADDRSTRLEN];
+                inet_ntop(AF_INET, &ipAddr, ipStr, INET_ADDRSTRLEN);
+                
+                // Filter valid entries
+                BYTE firstOctet = (pRow->dwAddr) & 0xFF;
+                bool isMulticast = (firstOctet >= 224 && firstOctet <= 239);
+                bool isBroadcast = (pRow->dwAddr == 0xFFFFFFFF);
+                bool isZero = (pRow->dwAddr == 0);
+                
+                bool isInvalidMAC = true;
+                for (int j = 0; j < 6; j++) {
+                    if (pRow->bPhysAddr[j] != 0x00 && pRow->bPhysAddr[j] != 0xFF) {
+                        isInvalidMAC = false;
+                        break;
+                    }
+                }
+                
+                bool isMulticastMAC = (pRow->bPhysAddr[0] == 0x01 && 
+                                       pRow->bPhysAddr[1] == 0x00 && 
+                                       pRow->bPhysAddr[2] == 0x5E);
+                
+                if ((pRow->dwType == MIB_IPNET_TYPE_DYNAMIC || 
+                     pRow->dwType == MIB_IPNET_TYPE_STATIC) &&
+                    !isMulticast && !isBroadcast && !isZero && 
+                    !isInvalidMAC && !isMulticastMAC) {
+                    
+                    deviceCount++;
+                    
+                    // Get device type
+                    std::string deviceType = GetDeviceType(pRow->bPhysAddr);
+                    
+                    // Check if router/gateway
+                    bool isGateway = (strcmp(ipStr, "192.168.1.1") == 0 || 
+                                     strcmp(ipStr, "192.168.0.1") == 0);
+                    
+                    // Format MAC address
+                    char macStr[18];
+                    sprintf(macStr, "%02X:%02X:%02X:%02X:%02X:%02X",
+                            pRow->bPhysAddr[0], pRow->bPhysAddr[1], pRow->bPhysAddr[2],
+                            pRow->bPhysAddr[3], pRow->bPhysAddr[4], pRow->bPhysAddr[5]);
+                    
+                    // Try to get hostname
+                    struct sockaddr_in sa;
+                    char hostname[NI_MAXHOST];
+                    memset(&sa, 0, sizeof(sa));
+                    sa.sin_family = AF_INET;
+                    inet_pton(AF_INET, ipStr, &sa.sin_addr);
+                    
+                    std::string deviceName = "";
+                    if (getnameinfo((struct sockaddr*)&sa, sizeof(sa), hostname, sizeof(hostname), 
+                                   NULL, 0, NI_NOFQDN) == 0) {
+                        if (strcmp(hostname, ipStr) != 0 && strlen(hostname) > 0) {
+                            deviceName = hostname;
+                        }
+                    }
+                    
+                    // Display device info
+                    std::cout << "[Device " << deviceCount << "] ";
+                    if (isGateway) {
+                        std::cout << "WiFi Router/Gateway";
+                    } else if (!deviceName.empty()) {
+                        std::cout << deviceName << " (" << deviceType << ")";
+                    } else {
+                        std::cout << deviceType;
+                    }
+                    std::cout << "\n";
+                    std::cout << "  IP:  " << ipStr << "\n";
+                    std::cout << "  MAC: " << macStr << "\n\n";
+                }
+            }
+            
+            if (deviceCount == 0) {
+                std::cout << "No active devices found in ARP table.\n";
+                std::cout << "TIP: Try pinging devices first to populate the ARP cache.\n\n";
+            } else {
+                std::cout << "Total: " << deviceCount << " device(s) found\n\n";
+            }
+        } else {
+            std::cout << "[ERROR] Failed to get ARP table\n\n";
+        }
+        
+        if (pIpNetTable != NULL) {
+            free(pIpNetTable);
+        }
+        
+        WSACleanup();
+#else
+        std::cout << "\n[INFO] Device scanning only available on Windows\n\n";
+#endif
+        
+        std::cout << "Press Enter to continue...";
+        std::cin.ignore();
+        std::cin.get();
+    }
+
     void run() {
         int choice;
         bool running = true;
@@ -284,18 +464,21 @@ public:
                     scanNetworks();
                     break;
                 case 2:
-                    connectToNetwork();
+                    scanConnectedDevices();
                     break;
                 case 3:
-                    toggleProtection();
+                    connectToNetwork();
                     break;
                 case 4:
-                    viewLogs();
+                    toggleProtection();
                     break;
                 case 5:
-                    testProtectionFeatures();
+                    viewLogs();
                     break;
                 case 6:
+                    testProtectionFeatures();
+                    break;
+                case 7:
                     showNetworkStats();
                     break;
                 case 0:
