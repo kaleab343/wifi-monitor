@@ -1,0 +1,26 @@
+Note: Unnecessary use of -X or --request, POST is already inferred.
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying 192.168.1.1:80...
+* Connected to 192.168.1.1 (192.168.1.1) port 80
+* using HTTP/1.x
+* Server auth using Basic with user 'user'
+> POST /uajax/firewall_macfilter_json.htm?a=add&x=InternetGatewayDevice.X_CT_COM_MacFilterCfg.X_CT_COM_MacFilterListCfgObj.%7Bi%7D.&MacAddress=a6%3A57%3A18%3A57%3Ac1%3A53 HTTP/1.1
+> Host: 192.168.1.1
+> Authorization: Basic dXNlcjo3ZFdVIWZOZg==
+> User-Agent: curl/8.13.0
+> Content-Type: json
+> X-Requested-With: XMLHttpRequest
+> Accept: */*
+> Accept-Language: en-GB,en-US;q=0.9,en;q=0.8
+> Referer: http://192.168.1.1/firewall_macfilter.html
+> Origin: http://192.168.1.1
+> Connection: keep-alive
+> Content-Length: 222
+> 
+} [222 bytes data]
+* upload completely sent off: 222 bytes
+* Empty reply from server
+100   222    0     0  100   222      0  20601 --:--:-- --:--:-- --:--:-- 22200
+* shutting down connection #0
+curl: (52) Empty reply from server

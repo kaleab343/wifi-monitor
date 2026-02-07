@@ -66,19 +66,23 @@ class HybridRouterGUI:
         tree_frame.pack(fill=tk.BOTH, expand=True, pady=5)
         
         self.devices_tree = ttk.Treeview(tree_frame, 
-                                        columns=('IP', 'MAC', 'Type', 'Status'),
+                                        columns=('IP', 'MAC', 'Manufacturer', 'Type', 'OS', 'Status'),
                                         show='tree headings', height=15)
         
-        self.devices_tree.heading('#0', text='Device Name')
+        self.devices_tree.heading('#0', text='Hostname / Username')
         self.devices_tree.heading('IP', text='IP Address')
         self.devices_tree.heading('MAC', text='MAC Address')
-        self.devices_tree.heading('Type', text='Type')
+        self.devices_tree.heading('Manufacturer', text='Manufacturer')
+        self.devices_tree.heading('Type', text='Device Type')
+        self.devices_tree.heading('OS', text='OS')
         self.devices_tree.heading('Status', text='Status')
         
-        self.devices_tree.column('#0', width=200)
-        self.devices_tree.column('IP', width=120)
-        self.devices_tree.column('MAC', width=140)
-        self.devices_tree.column('Type', width=120)
+        self.devices_tree.column('#0', width=180)
+        self.devices_tree.column('IP', width=100)
+        self.devices_tree.column('MAC', width=130)
+        self.devices_tree.column('Manufacturer', width=100)
+        self.devices_tree.column('Type', width=110)
+        self.devices_tree.column('OS', width=80)
         self.devices_tree.column('Status', width=80)
         
         scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.devices_tree.yview)
@@ -90,7 +94,11 @@ class HybridRouterGUI:
         btn_frame = tk.Frame(left_frame, bg='#2b2b2b')
         btn_frame.pack(fill=tk.X, pady=5)
         
-        tk.Button(btn_frame, text="🔄 Scan Devices", command=self.scan_devices,
+        tk.Button(btn_frame, text="🔄 Quick Scan", command=self.scan_devices,
+                 bg='#0066cc', fg='white', font=('Arial', 10, 'bold'),
+                 padx=15, pady=8).pack(side=tk.LEFT, padx=5)
+        
+        tk.Button(btn_frame, text="🔍 Deep Monitor (10s)", command=self.passive_monitor,
                  bg='#0066cc', fg='white', font=('Arial', 10, 'bold'),
                  padx=15, pady=8).pack(side=tk.LEFT, padx=5)
         
@@ -188,6 +196,44 @@ class HybridRouterGUI:
         except Exception as e:
             self.log(f"✗ Scan error: {e}", "ERROR")
     
+    def passive_monitor(self):
+        """Monitor network passively for 10 seconds"""
+        self.log("🔍 Starting passive network monitor (10 seconds)...", "INFO")
+        self.update_status("Monitoring network traffic...")
+        self.run_in_thread(self._passive_monitor_thread)
+    
+    def _passive_monitor_thread(self):
+        """Background passive monitoring"""
+        try:
+            if not os.path.exists('passive_monitor.exe'):
+                self.log("✗ Passive monitor not found", "ERROR")
+                self.root.after(0, lambda: messagebox.showerror("Error",
+                    "passive_monitor.exe not found!\n\nPlease rebuild the project."))
+                return
+            
+            self.log("Monitoring network for 10 seconds...", "INFO")
+            self.log("Tip: Use your devices to see them appear!", "INFO")
+            
+            result = subprocess.run(['passive_monitor.exe', '10'], 
+                                  capture_output=True, text=True, timeout=15)
+            
+            if result.returncode == 0:
+                devices = json.loads(result.stdout)
+                self.devices = devices
+                self.log(f"✓ Passive monitor found {len(devices)} device(s)", "SUCCESS")
+                
+                self.root.after(0, self._update_device_tree)
+                self.root.after(0, lambda: self.update_status(f"Found {len(devices)} devices (passive)"))
+            else:
+                self.log(f"✗ Monitor failed: {result.stderr}", "ERROR")
+                
+        except subprocess.TimeoutExpired:
+            self.log("✗ Monitor timeout", "ERROR")
+        except json.JSONDecodeError as e:
+            self.log(f"✗ Failed to parse monitor output", "ERROR")
+        except Exception as e:
+            self.log(f"✗ Monitor error: {e}", "ERROR")
+    
     def _scan_devices_arp(self):
         """Scan devices using ARP table"""
         try:
@@ -237,21 +283,36 @@ class HybridRouterGUI:
         # Add devices
         for device in self.devices:
             hostname = device.get('hostname', '')
-            if not hostname:
+            username = device.get('username', '')
+            
+            # Build display name
+            if username and username != hostname:
+                display_name = f"{hostname} [{username}]"
+            elif not hostname:
                 if device.get('is_router'):
-                    hostname = "WiFi Router"
+                    display_name = "WiFi Router"
                 else:
-                    hostname = f"Device {device['ip'].split('.')[-1]}"
+                    display_name = f"Device {device['ip'].split('.')[-1]}"
+            else:
+                display_name = hostname
+            
+            # Get enhanced info
+            manufacturer = device.get('manufacturer', 'Unknown')
+            device_type = device.get('device_type', device.get('type', 'Unknown'))
+            os_info = device.get('os', 'Unknown')
             
             # Check if blocked
             mac = device['mac']
             is_blocked = mac in self.blocked_macs
-            status = "🚫 BLOCKED" if is_blocked else "✓ Active"
+            status = "🚫 Blocked" if is_blocked else "✓ Active"
             
-            # Add to tree
-            self.devices_tree.insert('', tk.END, text=hostname,
+            # Add icon
+            icon = '🌐' if device.get('is_router') else '📱'
+            
+            # Add to tree with all enhanced details
+            self.devices_tree.insert('', tk.END, text=f"{icon} {display_name}",
                                     values=(device['ip'], device['mac'], 
-                                           device['type'], status))
+                                           manufacturer, device_type, os_info, status))
     
     def block_selected(self):
         """Block selected device using Python router API"""

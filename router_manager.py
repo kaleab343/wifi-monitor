@@ -203,23 +203,100 @@ class RouterManager:
     # ========== DEVICE MANAGEMENT ==========
     
     def get_connected_devices(self) -> Tuple[bool, List[Dict]]:
-        """Get list of all connected devices"""
-        success, result = self._make_request("/uajax/landevice_json.htm")
-        
-        if success and isinstance(result, dict):
-            devices = []
-            # Parse device information from response
-            if 'LanDevice' in result:
-                for device in result['LanDevice']:
-                    devices.append({
-                        'hostname': device.get('HostName', 'Unknown'),
-                        'ip': device.get('IPAddress', ''),
-                        'mac': device.get('MACAddress', ''),
-                        'interface': device.get('InterfaceType', ''),
-                        'active': device.get('Active', False)
-                    })
-            return True, devices
+        """Get list of all connected devices - NOT USED, use C++ scanner instead"""
+        # This method is kept for compatibility but not recommended
+        # The C++ device scanner is faster and more reliable
         return False, []
+    
+    def _get_devices_from_home_page(self) -> Tuple[bool, List[Dict]]:
+        """Get connected devices by parsing home.html (works with user account)"""
+        import re
+        import json as json_lib
+        
+        try:
+            # Get home page
+            response = self.session.get(f'{self.base_url}/home.html', timeout=10)
+            
+            if response.status_code != 200:
+                return False, []
+            
+            html = response.text
+            
+            # Extract the datas JavaScript object
+            # Look for AssocDe (Associated Devices) array
+            assoc_match = re.search(r'"AssocDe":\s*\[([^\]]+)\]', html, re.DOTALL)
+            
+            if not assoc_match:
+                return False, []
+            
+            devices = []
+            
+            # Parse each device entry
+            device_entries = re.findall(r'\{[^}]+\}', assoc_match.group(1))
+            
+            for entry in device_entries:
+                # Extract MAC address
+                mac_match = re.search(r'"AssociatedDeviceMACAddress":"([^"]+)"', entry)
+                
+                if mac_match:
+                    mac = mac_match.group(1)
+                    
+                    # Try to resolve hostname via reverse DNS
+                    hostname = self._get_device_hostname_from_arp(mac)
+                    
+                    devices.append({
+                        'hostname': hostname or 'Unknown',
+                        'ip': self._get_device_ip_from_arp(mac) or 'Unknown',
+                        'mac': mac,
+                        'interface': 'WiFi',
+                        'active': True
+                    })
+            
+            return True, devices
+            
+        except Exception as e:
+            return False, []
+    
+    def _get_device_hostname_from_arp(self, mac: str) -> str:
+        """Try to get hostname from ARP table or reverse DNS"""
+        import socket
+        
+        # Try to get IP from ARP first
+        ip = self._get_device_ip_from_arp(mac)
+        
+        if ip and ip != 'Unknown':
+            try:
+                hostname = socket.gethostbyaddr(ip)[0]
+                return hostname
+            except:
+                pass
+        
+        return ""
+    
+    def _get_device_ip_from_arp(self, mac: str) -> str:
+        """Get IP address from ARP table for a given MAC"""
+        import subprocess
+        
+        try:
+            # Run arp command
+            result = subprocess.run(['arp', '-a'], capture_output=True, text=True, timeout=5)
+            
+            if result.returncode == 0:
+                # Normalize MAC for comparison
+                mac_normalized = mac.upper().replace('-', ':')
+                
+                # Search for MAC in ARP output
+                for line in result.stdout.split('\n'):
+                    if mac_normalized.replace(':', '-') in line.upper():
+                        # Extract IP address
+                        import re
+                        ip_match = re.search(r'(\d+\.\d+\.\d+\.\d+)', line)
+                        if ip_match:
+                            return ip_match.group(1)
+        except:
+            pass
+        
+        return ""
     
     def get_mac_filter_list(self) -> Tuple[bool, List[Dict]]:
         """Get current MAC filter list (blocked devices)"""

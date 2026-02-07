@@ -2,13 +2,59 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
+#include <icmpapi.h>
 #include <iostream>
 #include <sstream>
 #include <iomanip>
 #include <string>
+#include <vector>
+#include <map>
+#include <thread>
+#include <algorithm>
 
 #pragma comment(lib, "iphlpapi.lib")
 #pragma comment(lib, "ws2_32.lib")
+#pragma comment(lib, "Iphlpapi.lib")
+
+struct DeviceInfo {
+    std::string ip;
+    std::string mac;
+    std::string hostname;
+    std::string type;
+    bool isRouter;
+    int priority; // For sorting: 0=router, 2=this PC, 3=others
+};
+
+void QuickPing(const std::string& ip) {
+    // Quick ARP request (faster than ICMP)
+    IPAddr destIP = inet_addr(ip.c_str());
+    ULONG macAddr[2];
+    ULONG macAddrLen = 6;
+    SendARP(destIP, 0, macAddr, &macAddrLen);
+}
+
+void DeepScanNetwork(const std::string& baseIP) {
+    // Scan common IP range (1-50) in parallel for speed
+    std::vector<std::thread> threads;
+    
+    for (int i = 1; i <= 50; i++) {
+        std::string ip = baseIP + "." + std::to_string(i);
+        threads.push_back(std::thread(QuickPing, ip));
+        
+        // Process in batches of 10 to avoid overwhelming
+        if (threads.size() >= 10) {
+            for (auto& t : threads) {
+                if (t.joinable()) t.join();
+            }
+            threads.clear();
+        }
+    }
+    
+    // Wait for remaining threads
+    for (auto& t : threads) {
+        if (t.joinable()) t.join();
+    }
+}
 
 std::string GetDeviceType(BYTE* mac) {
     // Apple
@@ -47,28 +93,122 @@ std::string GetHostname(const char* ipStr) {
     return "";
 }
 
-int main() {
-    // Output JSON format for Python
-    std::cout << "[" << std::endl;
+std::string GetLocalMAC() {
+    ULONG outBufLen = 15000;
+    PIP_ADAPTER_INFO pAdapterInfo = (IP_ADAPTER_INFO*)malloc(outBufLen);
     
+    if (GetAdaptersInfo(pAdapterInfo, &outBufLen) == ERROR_BUFFER_OVERFLOW) {
+        free(pAdapterInfo);
+        pAdapterInfo = (IP_ADAPTER_INFO*)malloc(outBufLen);
+    }
+    
+    if (GetAdaptersInfo(pAdapterInfo, &outBufLen) == NO_ERROR) {
+        PIP_ADAPTER_INFO pAdapter = pAdapterInfo;
+        while (pAdapter) {
+            // Type 71 = WiFi, Type 6 = Ethernet
+            if (pAdapter->Type == 71 || pAdapter->Type == 6) {
+                std::string ip = pAdapter->IpAddressList.IpAddress.String;
+                // Match the adapter with 192.168.1.x IP
+                if (ip != "0.0.0.0" && ip.substr(0, 10) == "192.168.1.") {
+                    std::stringstream macStream;
+                    for (UINT i = 0; i < pAdapter->AddressLength; i++) {
+                        if (i > 0) macStream << ":";
+                        macStream << std::hex << std::setfill('0') << std::setw(2) 
+                                 << std::uppercase << (int)pAdapter->Address[i];
+                    }
+                    free(pAdapterInfo);
+                    return macStream.str();
+                }
+            }
+            pAdapter = pAdapter->Next;
+        }
+    }
+    
+    free(pAdapterInfo);
+    return "";
+}
+
+std::string GetLocalIP() {
+    ULONG outBufLen = 15000;
+    PIP_ADAPTER_INFO pAdapterInfo = (IP_ADAPTER_INFO*)malloc(outBufLen);
+    
+    if (GetAdaptersInfo(pAdapterInfo, &outBufLen) == ERROR_BUFFER_OVERFLOW) {
+        free(pAdapterInfo);
+        pAdapterInfo = (IP_ADAPTER_INFO*)malloc(outBufLen);
+    }
+    
+    if (GetAdaptersInfo(pAdapterInfo, &outBufLen) == NO_ERROR) {
+        PIP_ADAPTER_INFO pAdapter = pAdapterInfo;
+        while (pAdapter) {
+            // Type 71 = WiFi, Type 6 = Ethernet
+            if (pAdapter->Type == 71 || pAdapter->Type == 6) {
+                std::string ip = pAdapter->IpAddressList.IpAddress.String;
+                // Prioritize 192.168.1.x network
+                if (ip != "0.0.0.0" && ip.substr(0, 10) == "192.168.1.") {
+                    free(pAdapterInfo);
+                    return ip;
+                }
+            }
+            pAdapter = pAdapter->Next;
+        }
+    }
+    
+    free(pAdapterInfo);
+    return "";
+}
+
+int main() {
+    // Initialize Winsock
+    WSADATA wsaData;
+    WSAStartup(MAKEWORD(2, 2), &wsaData);
+    
+    // Get local PC info
+    std::string localIP = GetLocalIP();
+    std::string localMAC = GetLocalMAC();
+    
+    // Get computer name
+    char computerName[MAX_COMPUTERNAME_LENGTH + 1] = {0};
+    DWORD size = sizeof(computerName);
+    GetComputerNameA(computerName, &size);
+    std::string hostname(computerName);
+    
+    // Determine base IP for deep scan
+    std::string baseIP = "192.168.1";
+    if (!localIP.empty()) {
+        size_t lastDot = localIP.find_last_of('.');
+        if (lastDot != std::string::npos) {
+            baseIP = localIP.substr(0, lastDot);
+        }
+    }
+    
+    // Deep scan the network to populate ARP table
+    DeepScanNetwork(baseIP);
+    
+    // Small delay to let ARP table update
+    Sleep(500);
+    
+    // Collect all devices
+    std::vector<DeviceInfo> allDevices;
+    
+    // Add This PC
+    if (!localIP.empty() && !localMAC.empty()) {
+        DeviceInfo thisPC;
+        thisPC.ip = localIP;
+        thisPC.mac = localMAC;
+        thisPC.hostname = hostname.empty() ? "This PC" : hostname + " (This PC)";
+        thisPC.type = "This Computer";
+        thisPC.isRouter = false;
+        thisPC.priority = 2; // This PC comes after router
+        allDevices.push_back(thisPC);
+    }
+    
+    // Get devices from ARP table
     PMIB_IPNETTABLE pIpNetTable = NULL;
     DWORD dwSize = 0;
-    DWORD dwRetVal = GetIpNetTable(NULL, &dwSize, FALSE);
+    GetIpNetTable(NULL, &dwSize, FALSE);
+    pIpNetTable = (MIB_IPNETTABLE*)malloc(dwSize);
     
-    if (dwRetVal == ERROR_INSUFFICIENT_BUFFER) {
-        pIpNetTable = (MIB_IPNETTABLE*)malloc(dwSize);
-    }
-    
-    if (pIpNetTable == NULL) {
-        std::cout << "]" << std::endl;
-        return 1;
-    }
-    
-    dwRetVal = GetIpNetTable(pIpNetTable, &dwSize, FALSE);
-    
-    if (dwRetVal == NO_ERROR) {
-        bool firstDevice = true;
-        
+    if (pIpNetTable && GetIpNetTable(pIpNetTable, &dwSize, FALSE) == NO_ERROR) {
         for (DWORD i = 0; i < pIpNetTable->dwNumEntries; i++) {
             MIB_IPNETROW* pRow = &pIpNetTable->table[i];
             
@@ -76,9 +216,8 @@ int main() {
             BYTE firstOctet = (pRow->dwAddr) & 0xFF;
             bool isMulticast = (firstOctet >= 224 && firstOctet <= 239);
             bool isBroadcast = (pRow->dwAddr == 0xFFFFFFFF);
-            bool isZero = (pRow->dwAddr == 0);
-            
             bool isInvalidMAC = true;
+            
             for (int j = 0; j < 6; j++) {
                 if (pRow->bPhysAddr[j] != 0x00 && pRow->bPhysAddr[j] != 0xFF) {
                     isInvalidMAC = false;
@@ -86,20 +225,16 @@ int main() {
                 }
             }
             
-            bool isMulticastMAC = (pRow->bPhysAddr[0] == 0x01 && 
-                                   pRow->bPhysAddr[1] == 0x00 && 
-                                   pRow->bPhysAddr[2] == 0x5E);
+            bool isMulticastMAC = (pRow->bPhysAddr[0] == 0x01 && pRow->bPhysAddr[1] == 0x00);
             
             if ((pRow->dwType == MIB_IPNET_TYPE_DYNAMIC || pRow->dwType == MIB_IPNET_TYPE_STATIC) &&
-                !isMulticast && !isBroadcast && !isZero && !isInvalidMAC && !isMulticastMAC) {
+                !isMulticast && !isBroadcast && !isInvalidMAC && !isMulticastMAC) {
                 
-                // Convert IP
                 struct in_addr ipAddr;
                 ipAddr.S_un.S_addr = pRow->dwAddr;
                 char ipStr[INET_ADDRSTRLEN];
                 inet_ntop(AF_INET, &ipAddr, ipStr, INET_ADDRSTRLEN);
                 
-                // Convert MAC
                 std::stringstream macStream;
                 for (int j = 0; j < 6; j++) {
                     if (j > 0) macStream << ":";
@@ -107,35 +242,50 @@ int main() {
                              << std::uppercase << (int)pRow->bPhysAddr[j];
                 }
                 
-                std::string deviceType = GetDeviceType(pRow->bPhysAddr);
-                std::string hostname = GetHostname(ipStr);
+                std::string mac = macStream.str();
                 
-                // Check if router
-                bool isGateway = (strcmp(ipStr, "192.168.1.1") == 0 || 
-                                 strcmp(ipStr, "192.168.0.1") == 0);
+                // Skip if it's the local MAC (already added)
+                if (mac == localMAC) continue;
                 
-                // Output JSON
-                if (!firstDevice) {
-                    std::cout << "," << std::endl;
-                }
-                firstDevice = false;
+                DeviceInfo dev;
+                dev.ip = ipStr;
+                dev.mac = mac;
+                dev.hostname = GetHostname(ipStr);
+                dev.type = GetDeviceType(pRow->bPhysAddr);
+                dev.isRouter = (strcmp(ipStr, "192.168.1.1") == 0 || strcmp(ipStr, "192.168.0.1") == 0);
+                dev.priority = dev.isRouter ? 0 : 3; // Router=0, ThisPC=2, Others=3
                 
-                std::cout << "  {" << std::endl;
-                std::cout << "    \"ip\": \"" << ipStr << "\"," << std::endl;
-                std::cout << "    \"mac\": \"" << macStream.str() << "\"," << std::endl;
-                std::cout << "    \"hostname\": \"" << (hostname.empty() ? "" : hostname) << "\"," << std::endl;
-                std::cout << "    \"type\": \"" << deviceType << "\"," << std::endl;
-                std::cout << "    \"is_router\": " << (isGateway ? "true" : "false") << std::endl;
-                std::cout << "  }";
+                allDevices.push_back(dev);
             }
         }
     }
     
-    std::cout << std::endl << "]" << std::endl;
+    if (pIpNetTable) free(pIpNetTable);
     
-    if (pIpNetTable != NULL) {
-        free(pIpNetTable);
+    // Sort devices: Router first (0), This PC (1), Others (2)
+    std::sort(allDevices.begin(), allDevices.end(), 
+        [](const DeviceInfo& a, const DeviceInfo& b) {
+            return a.priority < b.priority;
+        });
+    
+    // Output sorted JSON
+    std::cout << "[" << std::endl;
+    
+    for (size_t i = 0; i < allDevices.size(); i++) {
+        if (i > 0) std::cout << "," << std::endl;
+        
+        const DeviceInfo& dev = allDevices[i];
+        std::cout << "  {" << std::endl;
+        std::cout << "    \"ip\": \"" << dev.ip << "\"," << std::endl;
+        std::cout << "    \"mac\": \"" << dev.mac << "\"," << std::endl;
+        std::cout << "    \"hostname\": \"" << dev.hostname << "\"," << std::endl;
+        std::cout << "    \"type\": \"" << dev.type << "\"," << std::endl;
+        std::cout << "    \"is_router\": " << (dev.isRouter ? "true" : "false") << std::endl;
+        std::cout << "  }";
     }
     
+    std::cout << std::endl << "]" << std::endl;
+    
+    WSACleanup();
     return 0;
 }
