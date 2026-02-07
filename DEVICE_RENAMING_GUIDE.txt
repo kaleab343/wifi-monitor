@@ -1,0 +1,206 @@
+================================================================
+   ✏️ DEVICE RENAMING FEATURE - USER GUIDE
+================================================================
+
+NEW FEATURE: You can now rename devices and set device types!
+
+HOW TO RENAME A DEVICE:
+-----------------------
+
+Method 1: Right-Click Context Menu (Recommended)
+-------------------------------------------------
+1. Find the device in the list
+2. Right-click on it
+3. Select "✏️ Rename Device"
+4. Enter new name
+5. Click "💾 Save"
+
+The new name will be saved permanently in known_devices.json
+
+
+Method 2: Set Device Type
+--------------------------
+1. Right-click on a device
+2. Select "🏷️ Set Device Type"
+3. Choose from 30+ device types:
+   • iPhone, iPad
+   • Android Phone, Android Tablet
+   • Windows PC, Windows Laptop
+   • Mac, MacBook
+   • Smart TV (Samsung, LG, Sony)
+   • Gaming Console (PlayStation, Xbox, Nintendo Switch)
+   • Smart Home devices
+   • And more!
+4. Click "💾 Save"
+
+
+ADDITIONAL RIGHT-CLICK OPTIONS:
+--------------------------------
+
+📋 Copy MAC Address
+   → Copies MAC to clipboard
+
+📋 Copy IP Address
+   → Copies IP to clipboard
+
+
+DEVICE TYPES AVAILABLE:
+------------------------
+
+Mobile Devices:
+  • iPhone
+  • iPad
+  • Android Phone
+  • Android Tablet
+
+Computers:
+  • Windows PC
+  • Windows Laptop
+  • Mac
+  • MacBook
+  • Linux PC
+  • Raspberry Pi
+
+Entertainment:
+  • Smart TV
+  • Samsung TV
+  • LG TV
+  • Sony TV
+  • Gaming Console
+  • PlayStation
+  • Xbox
+  • Nintendo Switch
+
+Smart Home:
+  • Smart Speaker
+  • Amazon Echo
+  • Google Home
+  • Smart Home Device
+  • Security Camera
+  • Smart Bulb
+
+Network:
+  • Router
+  • Network Switch
+  • Access Point
+
+Office:
+  • Printer
+  • Scanner
+
+Other:
+  • Unknown Device
+  • Other
+
+
+WHERE ARE NAMES SAVED?
+-----------------------
+
+All custom names and types are saved in:
+  known_devices.json
+
+Format:
+{
+  "AA:BB:CC:DD:EE:FF": {
+    "name": "John's iPhone",
+    "type": "iPhone"
+  },
+  "11:22:33:44:55:66": {
+    "name": "Living Room TV",
+    "type": "Samsung TV"
+  }
+}
+
+
+EXAMPLE USE CASES:
+------------------
+
+1. Unknown Device (192.168.1.5)
+   → Right-click → Rename to "Guest Phone"
+   → Set type to "Android Phone"
+
+2. Generic "Huawei Phone"
+   → Rename to "Mom's Phone"
+   → Type already correct
+
+3. Device with randomized MAC
+   → Rename to "Kitchen Smart Speaker"
+   → Set type to "Amazon Echo"
+
+
+PERSISTENCE:
+------------
+
+✅ Names saved permanently
+✅ Types saved permanently
+✅ Survives app restart
+✅ Survives network scans
+✅ Can be edited anytime
+
+
+TIPS:
+-----
+
+💡 Use descriptive names:
+   Good: "John's iPhone 13", "Living Room TV"
+   Bad: "Device 1", "Thing"
+
+💡 Set accurate types:
+   Helps identify devices quickly
+   Used for filtering in future updates
+
+💡 Right-click is fastest:
+   No need to use separate Device Manager
+   Edit inline while viewing device list
+
+
+KEYBOARD SHORTCUTS:
+-------------------
+
+In Rename Dialog:
+  Enter  → Save
+  Escape → Cancel
+
+In Set Type Dialog:
+  Enter       → Save
+  Escape      → Cancel
+  Double-Click → Save
+
+
+UPDATED GUI FEATURES:
+---------------------
+
+✅ Right-click context menu
+✅ Rename device dialog
+✅ Set device type picker (30+ types)
+✅ Copy MAC/IP to clipboard
+✅ Automatic save to known_devices.json
+✅ Instant display refresh
+
+
+TESTING THE FEATURE:
+--------------------
+
+1. Run the GUI (should be running now)
+
+2. See devices in the list
+
+3. Right-click any device
+
+4. Try renaming:
+   Example: Rename "Unknown Device" to "My Smart TV"
+
+5. Try setting type:
+   Example: Set type to "Samsung TV"
+
+6. Click Quick Scan to see changes persist
+
+
+================================================================
+   🎉 Enjoy better device management!
+================================================================
+
+No more "Unknown Device" or generic names!
+Give each device a meaningful name and type.
+
+Your network will be much easier to manage! 🚀

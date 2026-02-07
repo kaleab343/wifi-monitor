@@ -54,7 +54,7 @@ class HybridRouterGUI:
         content_frame = tk.Frame(main_frame, bg='#2b2b2b')
         content_frame.pack(fill=tk.BOTH, expand=True, pady=10)
         
-        # Left side - Device list
+        # Left side - Device list (larger panel)
         left_frame = tk.Frame(content_frame, bg='#2b2b2b')
         left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
         
@@ -89,6 +89,9 @@ class HybridRouterGUI:
         self.devices_tree.configure(yscrollcommand=scrollbar.set)
         self.devices_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Add right-click context menu for renaming
+        self.devices_tree.bind("<Button-3>", self.show_context_menu)
         
         # Buttons
         btn_frame = tk.Frame(left_frame, bg='#2b2b2b')
@@ -137,9 +140,10 @@ class HybridRouterGUI:
                  bg='#00aa00', fg='white', font=('Arial', 9, 'bold'),
                  padx=10, pady=5).pack(side=tk.LEFT, padx=2)
         
-        # Right side - Blocked list
-        right_frame = tk.Frame(content_frame, bg='#2b2b2b')
-        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=5)
+        # Right side - Blocked list (smaller panel)
+        right_frame = tk.Frame(content_frame, bg='#2b2b2b', width=300)
+        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=False, padx=5)
+        right_frame.pack_propagate(False)
         
         tk.Label(right_frame, text="🚫 Blocked Devices (Python Router API)", 
                 bg='#2b2b2b', fg='#ff0000', font=('Arial', 12, 'bold')).pack()
@@ -444,42 +448,82 @@ class HybridRouterGUI:
         except Exception as e:
             self.log(f"✗ ARP scan failed: {e}", "ERROR")
     
+    def _load_known_devices(self):
+        """Load known devices from JSON database"""
+        try:
+            if os.path.exists('known_devices.json'):
+                with open('known_devices.json', 'r') as f:
+                    return json.load(f)
+            return {}
+        except Exception as e:
+            self.log(f"⚠ Could not load known devices: {e}", "WARNING")
+            return {}
+    
     def _update_device_tree(self):
         """Update device treeview (main thread only)"""
+        # Load known devices database
+        known_devices = self._load_known_devices()
+        
         # Clear current items
         for item in self.devices_tree.get_children():
             self.devices_tree.delete(item)
         
         # Add devices
         for device in self.devices:
+            mac = device['mac']
             hostname = device.get('hostname', '')
             username = device.get('username', '')
             
-            # Build display name
-            if username and username != hostname:
-                display_name = f"{hostname} [{username}]"
-            elif not hostname:
-                if device.get('is_router'):
-                    display_name = "WiFi Router"
+            # Check if we have a custom name/type for this device
+            custom_data = known_devices.get(mac, {})
+            custom_name = custom_data.get('name')
+            custom_type = custom_data.get('type')
+            
+            # Build display name - prioritize custom name
+            if custom_name:
+                # Use original hostname/username in the name column
+                if username and username != hostname:
+                    display_name = f"{hostname} [{username}]"
+                elif hostname:
+                    display_name = hostname
                 else:
                     display_name = f"Device {device['ip'].split('.')[-1]}"
+                
+                # Show custom name in device type column
+                device_type = custom_name
+                self.log(f"📌 Using custom name '{custom_name}' for {mac} in Device Type column", "INFO")
             else:
-                display_name = hostname
+                # No custom name - use default logic
+                if username and username != hostname:
+                    display_name = f"{hostname} [{username}]"
+                elif not hostname:
+                    if device.get('is_router'):
+                        display_name = "WiFi Router"
+                    else:
+                        display_name = f"Device {device['ip'].split('.')[-1]}"
+                else:
+                    display_name = hostname
+                
+                # Use custom type if available, otherwise use detected type
+                if custom_type:
+                    device_type = custom_type
+                    self.log(f"📌 Using saved type for {mac}: {custom_type}", "INFO")
+                else:
+                    device_type = device.get('device_type', device.get('type', 'Unknown'))
             
             # Get enhanced info
             manufacturer = device.get('manufacturer', 'Unknown')
-            device_type = device.get('device_type', device.get('type', 'Unknown'))
+            
             os_info = device.get('os', 'Unknown')
             
             # Check if blocked
-            mac = device['mac']
             is_blocked = mac in self.blocked_macs
             status = "🚫 Blocked" if is_blocked else "✓ Active"
             
             # Add icon
             icon = '🌐' if device.get('is_router') else '📱'
             
-            # Add to tree with all enhanced details
+            # Add to tree with all enhanced details (including custom name/type)
             self.devices_tree.insert('', tk.END, text=f"{icon} {display_name}",
                                     values=(device['ip'], device['mac'], 
                                            manufacturer, device_type, os_info, status))
@@ -659,6 +703,281 @@ class HybridRouterGUI:
                 
                 self.blocked_listbox.insert(tk.END, f"{i}. {device_name}")
                 self.blocked_listbox.insert(tk.END, f"   MAC: {mac}")
+    
+    def show_context_menu(self, event):
+        """Show right-click context menu on device"""
+        # Get selected item
+        item_id = self.devices_tree.identify_row(event.y)
+        if not item_id:
+            return
+        
+        # Select the item
+        self.devices_tree.selection_set(item_id)
+        
+        # Create context menu
+        menu = tk.Menu(self.root, tearoff=0, bg='#2b2b2b', fg='white', 
+                      activebackground='#0066cc', activeforeground='white')
+        menu.add_command(label="✏️ Rename Device", command=self.rename_device)
+        menu.add_command(label="🏷️ Set Device Type", command=self.set_device_type)
+        menu.add_separator()
+        menu.add_command(label="📋 Copy MAC Address", command=self.copy_mac)
+        menu.add_command(label="📋 Copy IP Address", command=self.copy_ip)
+        
+        # Show menu
+        menu.post(event.x_root, event.y_root)
+    
+    def rename_device(self):
+        """Rename selected device"""
+        selection = self.devices_tree.selection()
+        if not selection:
+            return
+        
+        # Get device info
+        item = self.devices_tree.item(selection[0])
+        current_name = item['text'].replace('🌐 ', '').replace('📱 ', '')
+        mac = item['values'][1]
+        ip = item['values'][0]
+        
+        # Create rename dialog
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Rename Device")
+        dialog.geometry("400x200")
+        dialog.configure(bg='#2b2b2b')
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Center dialog
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (dialog.winfo_width() // 2)
+        y = (dialog.winfo_screenheight() // 2) - (dialog.winfo_height() // 2)
+        dialog.geometry(f"+{x}+{y}")
+        
+        # Content
+        tk.Label(dialog, text="Rename Device", font=('Arial', 14, 'bold'),
+                bg='#2b2b2b', fg='#00ff00').pack(pady=10)
+        
+        tk.Label(dialog, text=f"MAC: {mac}\nIP: {ip}", font=('Arial', 9),
+                bg='#2b2b2b', fg='#888888').pack(pady=5)
+        
+        tk.Label(dialog, text="New Name:", font=('Arial', 10),
+                bg='#2b2b2b', fg='white').pack(pady=5)
+        
+        name_entry = tk.Entry(dialog, font=('Arial', 12), width=30)
+        name_entry.pack(pady=5)
+        name_entry.insert(0, current_name)
+        name_entry.select_range(0, tk.END)
+        name_entry.focus()
+        
+        def save_rename():
+            new_name = name_entry.get().strip()
+            if new_name:
+                if self._save_device_name(mac, new_name):
+                    dialog.destroy()
+                    self.log(f"✓ Renamed device {mac} to '{new_name}'", "SUCCESS")
+                    self.log(f"💾 Name saved permanently to known_devices.json", "SUCCESS")
+                    # Refresh display to show new name
+                    self.root.after(100, self._update_device_tree)
+                else:
+                    messagebox.showerror("Save Error", "Failed to save device name!")
+        
+        def cancel():
+            dialog.destroy()
+        
+        # Buttons
+        btn_frame = tk.Frame(dialog, bg='#2b2b2b')
+        btn_frame.pack(pady=15)
+        
+        tk.Button(btn_frame, text="💾 Save", command=save_rename,
+                 bg='#00aa00', fg='white', font=('Arial', 10, 'bold'),
+                 padx=20, pady=5).pack(side=tk.LEFT, padx=5)
+        
+        tk.Button(btn_frame, text="❌ Cancel", command=cancel,
+                 bg='#666666', fg='white', font=('Arial', 10, 'bold'),
+                 padx=20, pady=5).pack(side=tk.LEFT, padx=5)
+        
+        # Enter to save
+        name_entry.bind('<Return>', lambda e: save_rename())
+        dialog.bind('<Escape>', lambda e: cancel())
+    
+    def set_device_type(self):
+        """Set device type for selected device"""
+        selection = self.devices_tree.selection()
+        if not selection:
+            return
+        
+        # Get device info
+        item = self.devices_tree.item(selection[0])
+        hostname = item['text'].replace('🌐 ', '').replace('📱 ', '')
+        mac = item['values'][1]
+        current_type = item['values'][3]
+        
+        # Create type selection dialog
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Set Device Type")
+        dialog.geometry("400x450")
+        dialog.configure(bg='#2b2b2b')
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Center dialog
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (dialog.winfo_width() // 2)
+        y = (dialog.winfo_screenheight() // 2) - (dialog.winfo_height() // 2)
+        dialog.geometry(f"+{x}+{y}")
+        
+        # Content
+        tk.Label(dialog, text="Set Device Type", font=('Arial', 14, 'bold'),
+                bg='#2b2b2b', fg='#00ff00').pack(pady=10)
+        
+        tk.Label(dialog, text=f"{hostname}\nMAC: {mac}", font=('Arial', 9),
+                bg='#2b2b2b', fg='#888888').pack(pady=5)
+        
+        tk.Label(dialog, text="Select Device Type:", font=('Arial', 10),
+                bg='#2b2b2b', fg='white').pack(pady=10)
+        
+        # Device type options
+        device_types = [
+            "iPhone", "iPad", "Android Phone", "Android Tablet",
+            "Windows PC", "Windows Laptop", "Mac", "MacBook",
+            "Linux PC", "Raspberry Pi",
+            "Smart TV", "Samsung TV", "LG TV", "Sony TV",
+            "Gaming Console", "PlayStation", "Xbox", "Nintendo Switch",
+            "Smart Speaker", "Amazon Echo", "Google Home",
+            "Smart Home Device", "Security Camera", "Smart Bulb",
+            "Router", "Network Switch", "Access Point",
+            "Printer", "Scanner",
+            "Unknown Device", "Other"
+        ]
+        
+        # Listbox for selection
+        list_frame = tk.Frame(dialog, bg='#2b2b2b')
+        list_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        
+        scrollbar = tk.Scrollbar(list_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        type_listbox = tk.Listbox(list_frame, font=('Arial', 10), height=15,
+                                  bg='#1b1b1b', fg='white',
+                                  yscrollcommand=scrollbar.set,
+                                  selectmode=tk.SINGLE)
+        type_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=type_listbox.yview)
+        
+        # Populate listbox
+        for dtype in device_types:
+            type_listbox.insert(tk.END, dtype)
+            if dtype == current_type:
+                type_listbox.selection_set(type_listbox.size() - 1)
+                type_listbox.see(type_listbox.size() - 1)
+        
+        def save_type():
+            selection = type_listbox.curselection()
+            if selection:
+                new_type = type_listbox.get(selection[0])
+                if self._save_device_type(mac, new_type):
+                    dialog.destroy()
+                    self.log(f"✓ Set device type for {mac} to '{new_type}'", "SUCCESS")
+                    self.log(f"💾 Type saved permanently to known_devices.json", "SUCCESS")
+                    # Refresh display to show new type
+                    self.root.after(100, self._update_device_tree)
+                else:
+                    messagebox.showerror("Save Error", "Failed to save device type!")
+        
+        def cancel():
+            dialog.destroy()
+        
+        # Buttons
+        btn_frame = tk.Frame(dialog, bg='#2b2b2b')
+        btn_frame.pack(pady=10)
+        
+        tk.Button(btn_frame, text="💾 Save", command=save_type,
+                 bg='#00aa00', fg='white', font=('Arial', 10, 'bold'),
+                 padx=20, pady=5).pack(side=tk.LEFT, padx=5)
+        
+        tk.Button(btn_frame, text="❌ Cancel", command=cancel,
+                 bg='#666666', fg='white', font=('Arial', 10, 'bold'),
+                 padx=20, pady=5).pack(side=tk.LEFT, padx=5)
+        
+        # Double-click or Enter to save
+        type_listbox.bind('<Double-Button-1>', lambda e: save_type())
+        type_listbox.bind('<Return>', lambda e: save_type())
+        dialog.bind('<Escape>', lambda e: cancel())
+    
+    def copy_mac(self):
+        """Copy MAC address to clipboard"""
+        selection = self.devices_tree.selection()
+        if not selection:
+            return
+        
+        item = self.devices_tree.item(selection[0])
+        mac = item['values'][1]
+        
+        self.root.clipboard_clear()
+        self.root.clipboard_append(mac)
+        self.log(f"📋 Copied MAC address: {mac}", "INFO")
+    
+    def copy_ip(self):
+        """Copy IP address to clipboard"""
+        selection = self.devices_tree.selection()
+        if not selection:
+            return
+        
+        item = self.devices_tree.item(selection[0])
+        ip = item['values'][0]
+        
+        self.root.clipboard_clear()
+        self.root.clipboard_append(ip)
+        self.log(f"📋 Copied IP address: {ip}", "INFO")
+    
+    def _save_device_name(self, mac, name):
+        """Save device name to known_devices.json"""
+        try:
+            # Load existing database
+            if os.path.exists('known_devices.json'):
+                with open('known_devices.json', 'r') as f:
+                    known_devices = json.load(f)
+            else:
+                known_devices = {}
+            
+            # Update device name
+            if mac not in known_devices:
+                known_devices[mac] = {}
+            
+            known_devices[mac]['name'] = name
+            
+            # Save back
+            with open('known_devices.json', 'w') as f:
+                json.dump(known_devices, f, indent=2)
+            
+            return True
+        except Exception as e:
+            self.log(f"✗ Failed to save device name: {e}", "ERROR")
+            return False
+    
+    def _save_device_type(self, mac, device_type):
+        """Save device type to known_devices.json"""
+        try:
+            # Load existing database
+            if os.path.exists('known_devices.json'):
+                with open('known_devices.json', 'r') as f:
+                    known_devices = json.load(f)
+            else:
+                known_devices = {}
+            
+            # Update device type
+            if mac not in known_devices:
+                known_devices[mac] = {}
+            
+            known_devices[mac]['type'] = device_type
+            
+            # Save back
+            with open('known_devices.json', 'w') as f:
+                json.dump(known_devices, f, indent=2)
+            
+            return True
+        except Exception as e:
+            self.log(f"✗ Failed to save device type: {e}", "ERROR")
+            return False
 
 
 def main():

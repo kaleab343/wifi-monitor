@@ -1,0 +1,80 @@
+{
+  "00:4c:e5:f6:ab:e4": {
+    "mac": "00:4c:e5:f6:ab:e4",
+    "first_seen": "2026-02-07T15:07:05.834789",
+    "last_seen": "2026-02-07T15:07:35.210267",
+    "ip": "35.223.238.178",
+    "hostname": "Unknown",
+    "manufacturer": "Unknown Manufacturer",
+    "type": "Unknown Device",
+    "os": "Unknown",
+    "ports": [
+      51716,
+      52748,
+      53267,
+      51733,
+      52760,
+      54428,
+      52772,
+      50725,
+      52774,
+      52264,
+      52777,
+      54186,
+      53297,
+      53305,
+      51532,
+      52325,
+      54759,
+      45164,
+      53356,
+      53879
+    ],
+    "dns_queries": [
+      "safebrowsing.googleapis.com.",
+      "2.1.168.192.in-addr.arpa.",
+      "5.1.168.192.in-addr.arpa."
+    ],
+    "traffic": {
+      "bytes_sent": 1126152,
+      "bytes_recv": 0,
+      "packets": 884
+    }
+  },
+  "e0:51:d8:d7:13:b9": {
+    "mac": "e0:51:d8:d7:13:b9",
+    "first_seen": "2026-02-07T15:07:20.023971",
+    "last_seen": "2026-02-07T15:07:32.583774",
+    "ip": "192.168.1.2",
+    "hostname": "Unknown",
+    "manufacturer": "Unknown Manufacturer",
+    "type": "Unknown Device",
+    "os": "Unknown",
+    "ports": [
+      443
+    ],
+    "traffic": {
+      "bytes_sent": 24255,
+      "bytes_recv": 0,
+      "packets": 314
+    }
+  },
+  "a6:57:18:57:c1:53": {
+    "mac": "a6:57:18:57:c1:53",
+    "first_seen": "2026-02-07T15:07:22.297555",
+    "last_seen": "2026-02-07T15:07:28.855992",
+    "ip": "192.168.1.5",
+    "hostname": "Unknown",
+    "manufacturer": "Unknown Manufacturer",
+    "type": "Unknown Device",
+    "os": "Unknown",
+    "ports": [
+      443
+    ],
+    "traffic": {
+      "bytes_sent": 260,
+      "bytes_recv": 0,
+      "packets": 2
+    }
+  }
+}
