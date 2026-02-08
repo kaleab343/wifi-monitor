@@ -10,7 +10,7 @@ if %errorlevel% neq 0 (
 )
 
 echo ================================================
-echo   WiFi Router Manager - MITM Mode
+echo   NetWatch Pro - MITM Mode
 echo ================================================
 echo.
 echo Running with Administrator privileges

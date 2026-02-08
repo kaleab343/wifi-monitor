@@ -1,7 +1,7 @@
 @echo off
 echo ========================================
-echo  Hybrid Router Manager
-echo  C++ Scanner + Python Blocker
+echo  NetWatch Pro
+echo  Complete Network Visibility & Management
 echo ========================================
 echo.
 echo Checking requirements...

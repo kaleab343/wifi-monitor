@@ -1,10 +1,11 @@
-# 🌐 WiFi Router Manager - Network Device Monitor & Manager
+# 🔍 NetWatch Pro - Complete Network Visibility & Management
 
-A powerful network monitoring and management tool that combines device scanning, traffic analysis, and router control capabilities.
+A powerful professional-grade network monitoring and management tool that combines device scanning, deep traffic analysis, and router control capabilities.
 
 ![Version](https://img.shields.io/badge/version-2.0-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
+![Professional](https://img.shields.io/badge/grade-Professional-success)
 
 ## 🚀 Features
 
@@ -57,7 +58,7 @@ g++ device_scanner_cli.cpp -o device_scanner.exe -liphlpapi -lws2_32 -static
 
 ### Option 1: Use Pre-built Executable (Recommended)
 
-1. Download `WiFiRouterManager.exe` from the releases page
+1. Download `NetWatchPro.exe` from the releases page
 2. Run as Administrator (right-click → "Run as administrator")
 3. Start scanning and managing your network!
 
@@ -141,17 +142,18 @@ run_gui_as_admin_mitm.bat
 ## 📁 Project Structure
 
 ```
-wifi-monitor/
-├── hybrid_router_gui.py          # Main GUI application
+netwatch-pro/
+├── hybrid_router_gui.py          # Main GUI application (NetWatch Pro)
 ├── mitm_passive_scanner.py       # MITM traffic capture engine
 ├── router_manager.py             # Router API integration
 ├── complete_device_discovery.py  # Advanced device discovery
-├── device_manager_gui.py         # Device database manager
 ├── mdns_ssdp_discovery.py        # Network protocol discovery
+├── device_scanner_cli.cpp        # C++ ARP scanner (Quick Scan)
 ├── known_devices.json            # Device database
 ├── requirements.txt              # Python dependencies
 ├── app_icon.ico                  # Application icon
 ├── run_gui_as_admin_mitm.bat    # Admin launcher (Windows)
+├── note/                         # Development notes
 └── README.md                     # This file
 ```
 

@@ -16,7 +16,7 @@ from datetime import datetime
 class HybridRouterGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("🌐 Hybrid Router Manager - C++ Scanner + Python Blocker")
+        self.root.title("🔍 NetWatch Pro - Complete Network Visibility & Management")
         self.root.geometry("1000x700")
         self.root.configure(bg='#2b2b2b')
         
@@ -49,7 +49,7 @@ class HybridRouterGUI:
         
         # Title
         title = tk.Label(main_frame, 
-                        text="🌐 Hybrid Router Manager\nC++ Device Scanner + Python Router Blocker", 
+                        text="🔍 NetWatch Pro\nComplete Network Visibility & Management", 
                         font=('Arial', 18, 'bold'), bg='#2b2b2b', fg='#00ff00')
         title.pack(pady=10)
         
