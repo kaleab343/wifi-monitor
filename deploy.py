@@ -32,6 +32,7 @@ def create_executable():
         '--name=WiFiRouterManager',           # Executable name
         '--icon=app_icon.ico',                # Application icon
         f'--add-data=mitm_passive_scanner.py{separator}.',  # Include MITM scanner
+        f'--add-data=mitm_browser_monitor.py{separator}.',  # Include MITM browser monitor
         f'--add-data=complete_device_discovery.py{separator}.',  # Include discovery
         f'--add-data=device_manager_gui.py{separator}.',     # Include device manager
         f'--add-data=router_manager.py{separator}.',         # Include router manager
@@ -40,6 +41,8 @@ def create_executable():
         f'--add-data=app_icon.ico{separator}.',              # Include icon
         '--hidden-import=scapy',              # Include Scapy
         '--hidden-import=scapy.all',          # Include Scapy modules
+        '--hidden-import=scapy.layers.http',  # Include Scapy HTTP layer
+        '--hidden-import=scapy.layers.dns',   # Include Scapy DNS layer
         '--hidden-import=tkinter',            # Include Tkinter
         '--collect-all=scapy',                # Collect all Scapy data
         'hybrid_router_gui.py'                # Main script
@@ -193,9 +196,18 @@ def main():
         print("  ✅ Installer script: installer.nsi")
         print("  ✅ Desktop shortcut (if created)")
         print()
+        print("Features included:")
+        print("  🌐 Device scanning and management")
+        print("  🚫 Block/unblock devices via router API")
+        print("  🕵️  MITM Browser Monitor - Real-time web browsing tracker")
+        print("  📊 Complete device discovery (NetBIOS, mDNS, SSDP)")
+        print("  📝 Device naming and management")
+        print()
         print("To distribute:")
         print("  - Simple: Share WiFiRouterManager.exe")
         print("  - Professional: Create installer using NSIS")
+        print()
+        print("⚠️  Important: MITM features require Administrator privileges")
         print()
 
 if __name__ == "__main__":

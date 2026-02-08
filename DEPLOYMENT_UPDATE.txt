@@ -1,0 +1,353 @@
+════════════════════════════════════════════════════════════════════════
+  WiFi Router Manager - Deployment Updated with MITM Browser Monitor
+════════════════════════════════════════════════════════════════════════
+
+🎉 NEW FEATURE: Real-time Web Browsing Monitor (MITM)
+
+The deployment script (deploy.py) has been updated to include the new
+MITM Browser Monitor functionality!
+
+════════════════════════════════════════════════════════════════════════
+  What's New in This Update
+════════════════════════════════════════════════════════════════════════
+
+✨ MITM Browser Monitor
+   - Real-time HTTP/HTTPS traffic capture
+   - Shows what websites users are browsing
+   - Live URL tracking with timestamps
+   - Device attribution (which device visited which site)
+   - Export browsing history to JSON
+   - Block devices directly from browsing history
+
+📊 Enhanced Statistics
+   - HTTP vs HTTPS request counts
+   - Per-device browsing statistics
+   - DNS query tracking
+   - Traffic analysis
+
+🎯 New GUI Tab
+   - Dedicated "🕵️ Browsing Monitor (MITM)" tab
+   - Real-time browsing history table
+   - Live statistics dashboard
+   - Export and control buttons
+
+════════════════════════════════════════════════════════════════════════
+  Files Added to Deployment
+════════════════════════════════════════════════════════════════════════
+
+1. mitm_browser_monitor.py
+   - Core MITM browser monitoring engine
+   - HTTP/HTTPS packet capture and parsing
+   - SNI extraction from TLS handshakes
+   - Real-time callback system
+
+2. Enhanced hybrid_router_gui.py
+   - New MITM monitoring tab
+   - Real-time browsing display
+   - Integrated device blocking from browsing history
+   - Export functionality
+
+3. run_mitm_browser_gui.bat
+   - Quick launcher for MITM-enabled GUI
+   - Auto-installs Scapy if missing
+   - Reminds user to run as Administrator
+
+4. MITM_BROWSER_MONITOR_README.md
+   - Complete documentation
+   - Usage guide
+   - Legal and ethical considerations
+   - Troubleshooting
+
+════════════════════════════════════════════════════════════════════════
+  How to Build the Updated Executable
+════════════════════════════════════════════════════════════════════════
+
+Option 1: Automatic Build
+   
+   python deploy.py
+
+   This will:
+   ✓ Create app icon
+   ✓ Build WiFiRouterManager.exe with MITM features
+   ✓ Include mitm_browser_monitor.py
+   ✓ Include all Scapy HTTP/DNS layers
+   ✓ Create installer script
+   ✓ Create desktop shortcut
+
+Option 2: Manual PyInstaller
+
+   pyinstaller --onefile --noconsole ^
+     --name=WiFiRouterManager ^
+     --icon=app_icon.ico ^
+     --add-data=mitm_passive_scanner.py;. ^
+     --add-data=mitm_browser_monitor.py;. ^
+     --add-data=complete_device_discovery.py;. ^
+     --add-data=device_manager_gui.py;. ^
+     --add-data=router_manager.py;. ^
+     --add-data=mdns_ssdp_discovery.py;. ^
+     --add-data=known_devices.json;. ^
+     --add-data=app_icon.ico;. ^
+     --hidden-import=scapy ^
+     --hidden-import=scapy.all ^
+     --hidden-import=scapy.layers.http ^
+     --hidden-import=scapy.layers.dns ^
+     --hidden-import=tkinter ^
+     --collect-all=scapy ^
+     hybrid_router_gui.py
+
+════════════════════════════════════════════════════════════════════════
+  What's Included in the Executable
+════════════════════════════════════════════════════════════════════════
+
+Tab 1: 📱 Device Management
+   - Quick scan (ARP table)
+   - Complete discovery (NetBIOS, mDNS, SSDP)
+   - MITM passive scan (original)
+   - Block/unblock devices
+   - Device naming and management
+   - Blocked devices list
+
+Tab 2: 🕵️ Browsing Monitor (MITM) ⭐ NEW
+   - Start/Stop MITM monitoring
+   - Real-time browsing history table showing:
+     * Time
+     * Device name
+     * IP address
+     * Protocol (HTTP/HTTPS)
+     * Method (GET/POST/CONNECT)
+     * Full URL or website
+   - Statistics dashboard
+   - Clear history button
+   - Export to JSON button
+   - Right-click context menu:
+     * Copy URL
+     * Copy IP
+     * Block device
+
+Bottom Panel: 📋 Activity Log
+   - All operations logged
+   - Color-coded messages (INFO, SUCCESS, ERROR, WARNING)
+   - Scrollable history
+
+════════════════════════════════════════════════════════════════════════
+  System Requirements
+════════════════════════════════════════════════════════════════════════
+
+Software:
+   ✓ Python 3.7+
+   ✓ Scapy (pip install scapy)
+   ✓ Tkinter (included with Python)
+   ✓ PyInstaller (for building: pip install pyinstaller)
+
+For MITM Features:
+   ⚠️ Administrator/Root privileges required
+   ⚠️ Windows: Run as Administrator
+   ⚠️ Linux: Run with sudo
+
+Network:
+   ✓ Connected to target network
+   ✓ Same subnet as devices to monitor
+   ✓ Router accessible (192.168.1.1 or 192.168.0.1)
+
+════════════════════════════════════════════════════════════════════════
+  Testing the New Features
+════════════════════════════════════════════════════════════════════════
+
+1. Build the executable:
+   
+   python deploy.py
+
+2. Run as Administrator:
+   
+   Right-click dist/WiFiRouterManager.exe → Run as Administrator
+
+3. Test MITM Browser Monitor:
+   
+   a. Click "🕵️ Browsing Monitor (MITM)" tab
+   b. Click "▶️ Start MITM Monitor"
+   c. Wait for initialization (5-10 seconds)
+   d. Have someone browse websites on the network
+   e. Watch URLs appear in real-time!
+   f. Try right-clicking entries to test blocking
+   g. Export history to JSON
+
+4. Verify all features work:
+   
+   ✓ Device scanning
+   ✓ Device blocking/unblocking
+   ✓ MITM browsing monitor
+   ✓ Real-time URL capture
+   ✓ Export functionality
+   ✓ Statistics updates
+
+════════════════════════════════════════════════════════════════════════
+  Deployment Checklist
+════════════════════════════════════════════════════════════════════════
+
+Before Distribution:
+   
+   [ ] Python dependencies installed
+   [ ] deploy.py executed successfully
+   [ ] WiFiRouterManager.exe created in dist/
+   [ ] Tested on clean Windows machine
+   [ ] Tested with Administrator privileges
+   [ ] MITM monitoring tested and working
+   [ ] All tabs functional
+   [ ] Icon displays correctly
+   [ ] No console window appears
+   [ ] Error handling works properly
+
+Documentation to Include:
+   
+   [ ] README.md (main usage guide)
+   [ ] MITM_BROWSER_MONITOR_README.md (MITM guide)
+   [ ] QUICK_START.txt (quick start guide)
+   [ ] Legal disclaimer about MITM usage
+   [ ] Requirements list
+
+Optional Professional Touches:
+   
+   [ ] Create NSIS installer (run installer.nsi)
+   [ ] Digital signature on .exe
+   [ ] Auto-updater mechanism
+   [ ] Crash reporting
+   [ ] User analytics (opt-in)
+
+════════════════════════════════════════════════════════════════════════
+  Distribution Options
+════════════════════════════════════════════════════════════════════════
+
+Option 1: Simple Distribution (Recommended)
+   
+   Share: dist/WiFiRouterManager.exe
+   
+   Users just:
+   1. Download WiFiRouterManager.exe
+   2. Right-click → Run as Administrator
+   3. Start using!
+
+Option 2: Professional Installer
+   
+   1. Build executable: python deploy.py
+   2. Install NSIS: https://nsis.sourceforge.io/
+   3. Compile installer.nsi
+   4. Share: WiFiRouterManager_Setup.exe
+   
+   Users get:
+   - Proper installation to Program Files
+   - Start Menu shortcuts
+   - Desktop shortcut
+   - Uninstaller
+   - Clean uninstall
+
+Option 3: Portable Package
+   
+   Create ZIP with:
+   - WiFiRouterManager.exe
+   - README.md
+   - MITM_BROWSER_MONITOR_README.md
+   - QUICK_START.txt
+   - LICENSE.txt
+   
+   Users extract and run.
+
+════════════════════════════════════════════════════════════════════════
+  Legal & Ethical Considerations
+════════════════════════════════════════════════════════════════════════
+
+⚠️ IMPORTANT: Include these warnings in distribution
+
+1. Administrator Requirement:
+   "This application requires Administrator privileges for MITM 
+    features to function properly."
+
+2. Legal Use Only:
+   "MITM monitoring features are for authorized use only. Only use 
+    on networks you own or have explicit permission to monitor. 
+    Unauthorized interception of communications is illegal."
+
+3. Privacy Notice:
+   "The MITM Browser Monitor can see which websites users visit. 
+    HTTPS content remains encrypted and private. Use responsibly 
+    and respect user privacy."
+
+4. Consent Requirement:
+   "Obtain consent from network users before monitoring their 
+    browsing activity. Inform users that monitoring is taking place."
+
+════════════════════════════════════════════════════════════════════════
+  Troubleshooting Deployment Issues
+════════════════════════════════════════════════════════════════════════
+
+Issue: PyInstaller not found
+   Solution: pip install pyinstaller
+
+Issue: Scapy import errors in built .exe
+   Solution: Already handled with --collect-all=scapy
+
+Issue: HTTP/DNS layer missing
+   Solution: Already added --hidden-import flags
+
+Issue: .exe too large (100+ MB)
+   Solution: Normal for Scapy inclusion, use UPX compression:
+      pyinstaller ... --upx-dir=C:\path\to\upx
+
+Issue: Icon not showing
+   Solution: Verify app_icon.ico exists before building
+
+Issue: MITM not working in .exe
+   Solution: Ensure running as Administrator
+
+════════════════════════════════════════════════════════════════════════
+  Version Information
+════════════════════════════════════════════════════════════════════════
+
+Version: 2.0
+Release Date: 2024-01-15
+Codename: "Browser Tracker"
+
+Major Changes:
+   - Added MITM Browser Monitor
+   - Real-time URL tracking
+   - Enhanced GUI with tabs
+   - Improved deployment script
+   - Comprehensive documentation
+
+Previous Version: 1.0 (Device Management Only)
+
+════════════════════════════════════════════════════════════════════════
+  Support & Feedback
+════════════════════════════════════════════════════════════════════════
+
+If you encounter issues with the deployed executable:
+
+1. Check system requirements
+2. Verify Administrator privileges
+3. Review MITM_BROWSER_MONITOR_README.md
+4. Check Windows Firewall settings
+5. Ensure Scapy is working properly
+
+For development questions:
+   - Review source code comments
+   - Check deploy.py for build configuration
+   - Test with python hybrid_router_gui.py first
+
+════════════════════════════════════════════════════════════════════════
+  Summary
+════════════════════════════════════════════════════════════════════════
+
+✅ Deployment script updated
+✅ MITM Browser Monitor included
+✅ All dependencies configured
+✅ Documentation complete
+✅ Ready for distribution
+
+To deploy: python deploy.py
+
+The resulting WiFiRouterManager.exe will include all features:
+   - Device scanning and management
+   - Block/unblock via router API
+   - MITM Browser Monitor with real-time URL tracking
+   - Export and analysis tools
+
+════════════════════════════════════════════════════════════════════════
