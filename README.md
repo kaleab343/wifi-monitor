@@ -43,6 +43,16 @@ pip install -r requirements.txt
 - `requests` - Router API communication
 - `tkinter` - GUI (usually included with Python)
 
+### Optional: C++ Compiler (for Quick Scan)
+The Quick Scan feature uses a C++ ARP scanner for better performance. If `device_scanner.exe` is not present, the application will attempt to compile it automatically using MinGW g++.
+
+**To manually compile (Windows with MinGW):**
+```bash
+g++ device_scanner_cli.cpp -o device_scanner.exe -liphlpapi -lws2_32 -static
+```
+
+**Note:** If you don't have g++/MinGW installed, the Quick Scan will attempt to use the router API (which requires admin credentials) or you can use the Complete Discovery scan instead.
+
 ## 🛠️ Installation
 
 ### Option 1: Use Pre-built Executable (Recommended)
