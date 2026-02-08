@@ -18,9 +18,13 @@
     "name": "kaleab-A10"
   },
   "E0:51:D8:D7:13:B9": {
-    "name": "home tv"
+    "name": "smart tv",
+    "type": "Smart TV"
   },
   "A2:58:EF:74:F4:2A": {
     "name": "tesfu"
+  },
+  "86:FA:50:96:F2:D7": {
+    "name": "Kaleab-s-A10"
   }
 }

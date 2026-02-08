@@ -50,7 +50,7 @@ class MITMNetworkScanner:
         self.device_lock = threading.Lock()
         
         # Traffic statistics
-        self.traffic_stats = defaultdict(lambda: {'bytes_sent': 0, 'bytes_recv': 0, 'packets': 0})
+        self.traffic_stats = defaultdict(lambda: {'bytes_sent': 0, 'bytes_recv': 0, 'packets': 0, 'protocols': set()})
         
         # Running state
         self.running = False
@@ -167,6 +167,62 @@ class MITMNetworkScanner:
             return query
         return None
     
+    def detect_protocol(self, packet):
+        """Detect the protocol/traffic type from packet"""
+        try:
+            if TCP in packet:
+                dport = packet[TCP].dport
+                sport = packet[TCP].sport
+                
+                # Common protocols by port
+                if dport == 80 or sport == 80:
+                    return 'HTTP'
+                elif dport == 443 or sport == 443:
+                    return 'HTTPS'
+                elif dport == 22 or sport == 22:
+                    return 'SSH'
+                elif dport == 21 or sport == 21:
+                    return 'FTP'
+                elif dport == 25 or sport == 25:
+                    return 'SMTP'
+                elif dport == 110 or sport == 110:
+                    return 'POP3'
+                elif dport == 143 or sport == 143:
+                    return 'IMAP'
+                elif dport == 3389 or sport == 3389:
+                    return 'RDP'
+                elif dport == 5900 or sport == 5900:
+                    return 'VNC'
+                else:
+                    return 'TCP'
+            
+            elif UDP in packet:
+                dport = packet[UDP].dport
+                sport = packet[UDP].sport
+                
+                if dport == 53 or sport == 53:
+                    return 'DNS'
+                elif dport == 67 or sport == 67 or dport == 68 or sport == 68:
+                    return 'DHCP'
+                elif dport == 123 or sport == 123:
+                    return 'NTP'
+                elif dport == 5353 or sport == 5353:
+                    return 'mDNS'
+                elif dport == 1900 or sport == 1900:
+                    return 'SSDP'
+                else:
+                    return 'UDP'
+            
+            elif ICMP in packet:
+                return 'ICMP'
+            
+            elif ARP in packet:
+                return 'ARP'
+            
+            return 'Unknown'
+        except:
+            return 'Unknown'
+    
     def fingerprint_device_from_traffic(self, packet, device_info):
         """Advanced device fingerprinting from packet analysis"""
         
@@ -223,7 +279,7 @@ class MITMNetworkScanner:
                 device_info['os'] = 'iOS'
     
     def packet_handler(self, packet):
-        """Process each intercepted packet"""
+        """Process each intercepted packet - captures ALL traffic types"""
         try:
             if not packet.haslayer(Ether):
                 return
@@ -252,13 +308,29 @@ class MITMNetworkScanner:
                 device = self.devices[src_mac]
                 device['last_seen'] = datetime.now().isoformat()
                 
-                # Extract IP address
+                # Always update traffic stats (even for non-IP packets)
+                self.traffic_stats[src_mac]['bytes_sent'] += len(packet)
+                self.traffic_stats[src_mac]['packets'] += 1
+                
+                # Extract IP address and detect protocols
                 if IP in packet:
                     device['ip'] = packet[IP].src
                     
-                    # Update traffic stats
-                    self.traffic_stats[src_mac]['bytes_sent'] += len(packet)
-                    self.traffic_stats[src_mac]['packets'] += 1
+                    # Detect protocol type
+                    protocol = self.detect_protocol(packet)
+                    if protocol:
+                        self.traffic_stats[src_mac]['protocols'].add(protocol)
+                
+                # Detect ARP packets (non-IP traffic)
+                elif ARP in packet:
+                    if packet[ARP].psrc and packet[ARP].psrc != '0.0.0.0':
+                        device['ip'] = packet[ARP].psrc
+                    self.traffic_stats[src_mac]['protocols'].add('ARP')
+                
+                # Detect other layer 2/3 protocols
+                else:
+                    # Capture any other Ethernet traffic
+                    self.traffic_stats[src_mac]['protocols'].add('Other')
                 
                 # Fingerprint device from packet contents
                 self.fingerprint_device_from_traffic(packet, device)
@@ -292,14 +364,15 @@ class MITMNetworkScanner:
         return mac_db.get(oui, 'Unknown Manufacturer')
     
     def start_passive_scan(self, duration=30):
-        """Start passive MITM scanning for specified duration"""
+        """Start passive MITM scanning for specified duration - 100% traffic capture"""
         print(f"\n{'='*60}")
-        print(f"🔍 MITM Passive Network Scanner")
+        print(f"🔍 MITM Passive Network Scanner - 100% Traffic Capture")
         print(f"{'='*60}")
         print(f"[*] Interface: {self.interface}")
         print(f"[*] Gateway: {self.router_ip} ({self.gateway_mac})")
         print(f"[*] My IP: {self.my_ip} ({self.my_mac})")
         print(f"[*] Duration: {duration} seconds")
+        print(f"[*] Capture Mode: ALL TRAFFIC (no filter, promiscuous mode)")
         print(f"{'='*60}\n")
         
         # Enable IP forwarding
@@ -315,12 +388,23 @@ class MITMNetworkScanner:
         print("[*] Detecting devices from actual packets...\n")
         
         try:
-            # Sniff packets for the duration
+            # Configure scapy for maximum performance
+            conf.sniff_promisc = True  # Enable promiscuous mode globally
+            
+            # Sniff packets for the duration - NO FILTER to capture 100% of traffic
+            # This captures ALL packets: IP, ARP, IPv6, ICMP, UDP, TCP, everything
+            print("[*] Starting 100% traffic capture...")
+            print("[*] Capturing: IP, TCP, UDP, ARP, ICMP, DNS, DHCP, and ALL other protocols")
+            print("[*] Buffer size: Unlimited (store=False for memory efficiency)")
+            print("")
+            
             sniff(prn=self.packet_handler, 
-                  filter="ip", 
+                  filter=None,  # NO FILTER = Capture ALL traffic (100%)
                   iface=self.interface, 
                   timeout=duration,
-                  store=False)
+                  store=False,  # Don't store packets in memory (process on-the-fly)
+                  promisc=True,  # Promiscuous mode captures all network traffic
+                  count=0)  # No packet count limit
         except KeyboardInterrupt:
             print("\n[!] Interrupted by user")
         except Exception as e:
@@ -360,7 +444,10 @@ class MITMNetworkScanner:
                     dev['dns_queries'] = dev['dns_queries'][:5]  # Limit to 5
                 
                 # Add traffic stats
-                dev['traffic'] = dict(self.traffic_stats[mac])
+                stats = dict(self.traffic_stats[mac])
+                if 'protocols' in stats:
+                    stats['protocols'] = list(stats['protocols'])
+                dev['traffic'] = stats
                 
                 devices_copy[mac] = dev
             

@@ -26,6 +26,10 @@ class HybridRouterGUI:
         # Device storage
         self.devices = []
         self.blocked_macs = []
+        self.quick_scan_devices = []  # Store devices from quick scan for MITM merge
+        
+        # Track scan mode for dynamic column headers
+        self.last_scan_mode = "normal"  # "normal" or "mitm"
         
         # MITM Browser Monitor
         self.mitm_monitor = None
@@ -90,9 +94,9 @@ class HybridRouterGUI:
         content_frame = tk.Frame(parent, bg='#2b2b2b')
         content_frame.pack(fill=tk.BOTH, expand=True, pady=10)
         
-        # Left side - Device list (larger panel)
+        # Device list (full width)
         left_frame = tk.Frame(content_frame, bg='#2b2b2b')
-        left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
+        left_frame.pack(fill=tk.BOTH, expand=True, padx=5)
         
         tk.Label(left_frame, text="📱 Connected Devices (ARP Scan)", 
                 bg='#2b2b2b', fg='#00ff00', font=('Arial', 12, 'bold')).pack()
@@ -145,10 +149,6 @@ class HybridRouterGUI:
                  bg='#dc3545', fg='white', font=('Arial', 10, 'bold'),
                  padx=15, pady=8).pack(side=tk.LEFT, padx=5)
         
-        tk.Button(btn_frame, text="📝 Manage Known Devices", command=self.open_device_manager,
-                 bg='#6c757d', fg='white', font=('Arial', 10, 'bold'),
-                 padx=15, pady=8).pack(side=tk.LEFT, padx=5)
-        
         tk.Button(btn_frame, text="🚫 Block Selected (Python)", command=self.block_selected,
                  bg='#cc0000', fg='white', font=('Arial', 10, 'bold'),
                  padx=15, pady=8).pack(side=tk.LEFT, padx=5)
@@ -175,22 +175,6 @@ class HybridRouterGUI:
         tk.Button(manual_frame, text="✅ Unblock", command=self.unblock_manual,
                  bg='#00aa00', fg='white', font=('Arial', 9, 'bold'),
                  padx=10, pady=5).pack(side=tk.LEFT, padx=2)
-        
-        # Right side - Blocked list (smaller panel)
-        right_frame = tk.Frame(content_frame, bg='#2b2b2b', width=300)
-        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=False, padx=5)
-        right_frame.pack_propagate(False)
-        
-        tk.Label(right_frame, text="🚫 Blocked Devices (Python Router API)", 
-                bg='#2b2b2b', fg='#ff0000', font=('Arial', 12, 'bold')).pack()
-        
-        self.blocked_listbox = tk.Listbox(right_frame, bg='#1b1b1b', fg='#ff0000',
-                                          font=('Courier', 10), height=15)
-        self.blocked_listbox.pack(fill=tk.BOTH, expand=True, pady=5)
-        
-        tk.Button(right_frame, text="🔄 Refresh Blocked List", command=self.refresh_blocked,
-                 bg='#666666', fg='white', font=('Arial', 10, 'bold'),
-                 padx=15, pady=8).pack(pady=5)
     
     def _create_mitm_tab(self, parent):
         """Create MITM real-time traffic monitoring tab"""
@@ -336,6 +320,9 @@ class HybridRouterGUI:
     def _scan_devices_thread(self):
         """Background thread for scanning"""
         try:
+            # Set scan mode to normal
+            self.last_scan_mode = "normal"
+            
             # Note: Router API /uajax/landevice_json.htm requires ADMIN access
             # User account only has limited access, so we use ARP scanning
             self.log("⚠ Note: User account has limited router API access", "WARNING")
@@ -356,6 +343,9 @@ class HybridRouterGUI:
     def _complete_discovery_thread(self):
         """Background complete discovery"""
         try:
+            # Set scan mode to normal
+            self.last_scan_mode = "normal"
+            
             self.log("Running comprehensive device discovery...", "INFO")
             self.log("Methods: NetBIOS, mDNS, SSDP, Enhanced MAC Database", "INFO")
             
@@ -417,6 +407,9 @@ class HybridRouterGUI:
     def _mitm_scan_thread(self):
         """Background MITM scanning"""
         try:
+            # Set scan mode to MITM
+            self.last_scan_mode = "mitm"
+            
             # Check if running as admin on Windows
             if os.name == 'nt':
                 import ctypes
@@ -458,23 +451,85 @@ class HybridRouterGUI:
             # Get results
             devices_dict = scanner.get_devices()
             
-            self.log(f"✓ MITM scan complete - Found {len(devices_dict)} devices!", "SUCCESS")
+            self.log(f"✓ MITM scan complete - Found {len(devices_dict)} devices with traffic!", "SUCCESS")
+            
+            # Merge with Quick Scan devices to show ALL connected devices
+            self.log(f"Merging with Quick Scan results ({len(self.quick_scan_devices)} devices)...", "INFO")
+            
+            # Create a dictionary of MITM devices by MAC
+            mitm_devices_by_mac = {mac: device for mac, device in devices_dict.items()}
             
             # Convert to display format
             device_list = []
-            for mac, device in devices_dict.items():
-                device_list.append({
-                    'ip': device.get('ip', 'Unknown'),
-                    'mac': mac,
-                    'hostname': device.get('hostname', 'Unknown'),
-                    'manufacturer': device.get('manufacturer', 'Unknown'),
-                    'type': device.get('type', 'Unknown Device'),
-                    'os': device.get('os', 'Unknown'),
-                    'name_source': 'MITM Traffic Analysis',
-                    'traffic_sent': device.get('traffic', {}).get('bytes_sent', 0),
-                    'traffic_recv': device.get('traffic', {}).get('bytes_recv', 0),
-                    'packets': device.get('traffic', {}).get('packets', 0),
-                })
+            all_macs = set()
+            
+            # First, add all devices from Quick Scan
+            for quick_device in self.quick_scan_devices:
+                mac = quick_device['mac']
+                all_macs.add(mac)
+                
+                # Check if this device has MITM traffic data
+                if mac in mitm_devices_by_mac:
+                    mitm_device = mitm_devices_by_mac[mac]
+                    traffic_info = mitm_device.get('traffic', {})
+                    protocols = traffic_info.get('protocols', [])
+                    traffic_types = ', '.join(protocols) if protocols else 'No Traffic'
+                    
+                    device_list.append({
+                        'ip': quick_device.get('ip', mitm_device.get('ip', 'Unknown')),
+                        'mac': mac,
+                        'hostname': quick_device.get('hostname', mitm_device.get('hostname', 'Unknown')),
+                        'manufacturer': traffic_types,  # Show traffic types
+                        'type': quick_device.get('type', mitm_device.get('type', 'Unknown Device')),
+                        'os': mitm_device.get('os', quick_device.get('os', 'Unknown')),
+                        'name_source': 'MITM + Quick Scan',
+                        'traffic_sent': traffic_info.get('bytes_sent', 0),
+                        'traffic_recv': traffic_info.get('bytes_recv', 0),
+                        'packets': traffic_info.get('packets', 0),
+                        'connected': True,
+                    })
+                else:
+                    # Device found in Quick Scan but NO traffic in MITM
+                    device_list.append({
+                        'ip': quick_device.get('ip', 'Unknown'),
+                        'mac': mac,
+                        'hostname': quick_device.get('hostname', 'Unknown'),
+                        'manufacturer': 'No Traffic (Silent)',  # No traffic detected
+                        'type': quick_device.get('type', 'Unknown Device'),
+                        'os': quick_device.get('os', 'Unknown'),
+                        'name_source': 'Quick Scan Only',
+                        'traffic_sent': 0,
+                        'traffic_recv': 0,
+                        'packets': 0,
+                        'connected': True,
+                    })
+            
+            # Add any MITM-only devices (not in Quick Scan)
+            for mac, mitm_device in devices_dict.items():
+                if mac not in all_macs:
+                    traffic_info = mitm_device.get('traffic', {})
+                    protocols = traffic_info.get('protocols', [])
+                    traffic_types = ', '.join(protocols) if protocols else 'No Traffic'
+                    
+                    device_list.append({
+                        'ip': mitm_device.get('ip', 'Unknown'),
+                        'mac': mac,
+                        'hostname': mitm_device.get('hostname', 'Unknown'),
+                        'manufacturer': traffic_types,
+                        'type': mitm_device.get('type', 'Unknown Device'),
+                        'os': mitm_device.get('os', 'Unknown'),
+                        'name_source': 'MITM Only',
+                        'traffic_sent': traffic_info.get('bytes_sent', 0),
+                        'traffic_recv': traffic_info.get('bytes_recv', 0),
+                        'packets': traffic_info.get('packets', 0),
+                        'connected': True,
+                    })
+            
+            self.log(f"✓ Total devices in combined view: {len(device_list)}", "SUCCESS")
+            active_count = sum(1 for d in device_list if d['packets'] > 0)
+            silent_count = len(device_list) - active_count
+            self.log(f"  - {active_count} devices with traffic", "INFO")
+            self.log(f"  - {silent_count} devices silent (connected but no traffic)", "INFO")
             
             # Sort by IP
             device_list.sort(key=lambda x: self._ip_sort_key(x.get('ip', '0.0.0.0')))
@@ -486,8 +541,11 @@ class HybridRouterGUI:
             
             # Log device details
             for dev in device_list:
-                traffic = f"↑{dev['traffic_sent']}B ↓{dev['traffic_recv']}B ({dev['packets']} pkts)"
-                self.log(f"  {dev['hostname']} ({dev['ip']}) - {traffic}", "INFO")
+                if dev['packets'] > 0:
+                    traffic = f"↑{dev['traffic_sent']}B ↓{dev['traffic_recv']}B ({dev['packets']} pkts) - {dev['manufacturer']}"
+                    self.log(f"  ✓ {dev['hostname']} ({dev['ip']}) - {traffic}", "SUCCESS")
+                else:
+                    self.log(f"  ⚠ {dev['hostname']} ({dev['ip']}) - Connected but silent (no traffic)", "WARNING")
             
             # Save to file
             with open('mitm_devices.json', 'w') as f:
@@ -518,6 +576,9 @@ class HybridRouterGUI:
     def _passive_monitor_thread(self):
         """Background passive monitoring"""
         try:
+            # Set scan mode to normal
+            self.last_scan_mode = "normal"
+            
             if not os.path.exists('passive_monitor.exe'):
                 self.log("✗ Passive monitor not found", "ERROR")
                 self.root.after(0, lambda: messagebox.showerror("Error",
@@ -574,6 +635,7 @@ class HybridRouterGUI:
             if result.returncode == 0:
                 devices = json.loads(result.stdout)
                 self.devices = devices
+                self.quick_scan_devices = devices  # Store for MITM merge
                 self.log(f"✓ Found {len(devices)} device(s) via ARP scan", "SUCCESS")
                 self.root.after(0, self._update_device_tree)
                 self.root.after(0, lambda: self.update_status(f"Found {len(devices)} devices"))
@@ -602,6 +664,12 @@ class HybridRouterGUI:
         """Update device treeview (main thread only)"""
         # Load known devices database
         known_devices = self._load_known_devices()
+        
+        # Update column header based on scan mode
+        if self.last_scan_mode == "mitm":
+            self.devices_tree.heading('Manufacturer', text='Traffic Type')
+        else:
+            self.devices_tree.heading('Manufacturer', text='Manufacturer')
         
         # Clear current items
         for item in self.devices_tree.get_children():
@@ -716,7 +784,6 @@ class HybridRouterGUI:
             
             # Update UI
             self.root.after(0, self._update_device_tree)
-            self.root.after(0, self.refresh_blocked)
             self.root.after(0, lambda: messagebox.showinfo("Success", 
                 f"Device blocked!\n\n{hostname}\nMAC: {mac}\n\n"
                 "The device has been disconnected from WiFi."))
@@ -758,7 +825,6 @@ class HybridRouterGUI:
                 self.blocked_macs.remove(mac)
             
             self.root.after(0, self._update_device_tree)
-            self.root.after(0, self.refresh_blocked)
             self.root.after(0, lambda: messagebox.showinfo("Success",
                 f"Device unblocked!\n\n{hostname}\nMAC: {mac}"))
         else:
@@ -796,10 +862,6 @@ class HybridRouterGUI:
             self.log(f"✅ Unblocking {mac}...", "INFO")
             self.run_in_thread(self._unblock_device_thread, mac, f"Manual Entry ({mac})")
     
-    def open_device_manager(self):
-        """Open Device Manager GUI"""
-        import subprocess
-        subprocess.Popen(['python', 'device_manager_gui.py'])
     
     def refresh_blocked(self):
         """Refresh blocked devices list from router"""
@@ -820,28 +882,9 @@ class HybridRouterGUI:
             self.log(f"✓ Found {len(self.blocked_macs)} blocked device(s)", "SUCCESS")
             
             # Update UI
-            self.root.after(0, self._update_blocked_listbox)
             self.root.after(0, self._update_device_tree)
         else:
             self.log(f"✗ Failed to get blocked list: {blocked}", "ERROR")
-    
-    def _update_blocked_listbox(self):
-        """Update blocked devices listbox"""
-        self.blocked_listbox.delete(0, tk.END)
-        
-        if not self.blocked_macs:
-            self.blocked_listbox.insert(tk.END, "No devices blocked")
-        else:
-            for i, mac in enumerate(self.blocked_macs, 1):
-                # Find device name from scanned list
-                device_name = "Unknown Device"
-                for device in self.devices:
-                    if device['mac'] == mac:
-                        device_name = device.get('hostname', '') or device['type']
-                        break
-                
-                self.blocked_listbox.insert(tk.END, f"{i}. {device_name}")
-                self.blocked_listbox.insert(tk.END, f"   MAC: {mac}")
     
     def show_context_menu(self, event):
         """Show right-click context menu on device"""

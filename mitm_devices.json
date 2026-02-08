@@ -1,58 +1,43 @@
 {
   "00:4c:e5:f6:ab:e4": {
     "mac": "00:4c:e5:f6:ab:e4",
-    "first_seen": "2026-02-08T18:58:17.089528",
-    "last_seen": "2026-02-08T18:58:43.207337",
-    "ip": "212.83.149.198",
+    "first_seen": "2026-02-09T00:52:21.572802",
+    "last_seen": "2026-02-09T00:52:50.559136",
+    "ip": "35.223.238.178",
     "hostname": "Unknown",
     "manufacturer": "Unknown Manufacturer",
     "type": "Unknown Device",
     "os": "Unknown",
     "ports": [
-      40450,
-      62530,
-      51528,
-      50923,
-      51276,
-      46700,
-      62476,
-      59405,
-      50928,
-      51628,
-      51445,
-      59518,
-      62588,
-      50589,
-      59454,
-      49727
+      63810,
+      63237,
+      64230,
+      64201,
+      63178,
+      64172,
+      53102,
+      61550,
+      49458,
+      63772,
+      55958,
+      53145,
+      53212,
+      63966
     ],
     "dns_queries": [
-      "4.1.168.192.in-addr.arpa.",
-      "hollander-6-nl.maxxxcdn.com."
+      "api.statsig.com."
     ],
     "traffic": {
-      "bytes_sent": 29774,
+      "bytes_sent": 23610,
       "bytes_recv": 0,
-      "packets": 89
-    }
-  },
-  "a6:57:18:57:c1:53": {
-    "mac": "a6:57:18:57:c1:53",
-    "first_seen": "2026-02-08T18:58:23.236176",
-    "last_seen": "2026-02-08T18:58:29.395978",
-    "ip": "192.168.1.2",
-    "hostname": "Unknown",
-    "manufacturer": "Unknown Manufacturer",
-    "type": "Unknown Device",
-    "os": "Unknown",
-    "ports": [
-      443,
-      5228
-    ],
-    "traffic": {
-      "bytes_sent": 525,
-      "bytes_recv": 0,
-      "packets": 6
+      "packets": 73,
+      "protocols": [
+        "TCP",
+        "Unknown",
+        "HTTPS",
+        "DNS",
+        "ARP"
+      ]
     }
   }
 }
