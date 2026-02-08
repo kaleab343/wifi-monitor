@@ -13,12 +13,46 @@ import os
 from router_manager import RouterManager
 from datetime import datetime
 
+# Try to import PIL for better graphics (optional)
+try:
+    from PIL import Image, ImageTk, ImageDraw, ImageFont
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
+
 class HybridRouterGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("🔍 NetWatch Pro - Complete Network Visibility & Management")
-        self.root.geometry("1000x700")
-        self.root.configure(bg='#2b2b2b')
+        self.root.geometry("1300x850")
+        self.root.minsize(1100, 700)
+        
+        # Enhanced modern color scheme with gradients
+        self.colors = {
+            'bg_dark': '#0a0e27',           # Deep navy background
+            'bg_medium': '#1a1f3a',         # Medium navy
+            'bg_light': '#252d4a',          # Light navy
+            'bg_card': '#1e2139',           # Card background
+            'accent_blue': '#3b82f6',       # Modern blue
+            'accent_purple': '#8b5cf6',     # Purple accent
+            'accent_green': '#10b981',      # Modern green
+            'accent_orange': '#f59e0b',     # Amber orange
+            'accent_red': '#ef4444',        # Modern red
+            'accent_cyan': '#06b6d4',       # Cyan
+            'text_primary': '#f9fafb',      # Off-white
+            'text_secondary': '#9ca3af',    # Gray
+            'text_muted': '#6b7280',        # Muted gray
+            'success': '#10b981',
+            'warning': '#f59e0b',
+            'error': '#ef4444',
+            'border': '#374151',            # Border color
+            'hover': '#2d3548'              # Hover state
+        }
+        
+        self.root.configure(bg=self.colors['bg_dark'])
+        
+        # Configure custom ttk styles
+        self._configure_styles()
         
         # Router manager for blocking
         self.router = RouterManager()
@@ -41,71 +75,182 @@ class HybridRouterGUI:
         # Auto-scan on startup
         self.root.after(1000, self.scan_devices)
     
+    def _configure_styles(self):
+        """Configure custom ttk styles for modern look"""
+        style = ttk.Style()
+        style.theme_use('clam')
+        
+        # Configure Notebook (tabs)
+        style.configure('TNotebook', 
+                       background=self.colors['bg_dark'],
+                       borderwidth=0)
+        style.configure('TNotebook.Tab',
+                       background=self.colors['bg_medium'],
+                       foreground=self.colors['text_secondary'],
+                       padding=[20, 10],
+                       borderwidth=0,
+                       font=('Segoe UI', 10, 'bold'))
+        style.map('TNotebook.Tab',
+                 background=[('selected', self.colors['bg_card'])],
+                 foreground=[('selected', self.colors['accent_blue'])],
+                 expand=[('selected', [1, 1, 1, 0])])
+        
+        # Configure Treeview
+        style.configure('Treeview',
+                       background=self.colors['bg_card'],
+                       foreground=self.colors['text_primary'],
+                       fieldbackground=self.colors['bg_card'],
+                       borderwidth=0,
+                       font=('Segoe UI', 9),
+                       rowheight=28)
+        style.configure('Treeview.Heading',
+                       background=self.colors['bg_medium'],
+                       foreground=self.colors['text_primary'],
+                       borderwidth=1,
+                       relief='flat',
+                       font=('Segoe UI', 10, 'bold'))
+        style.map('Treeview.Heading',
+                 background=[('active', self.colors['bg_light'])])
+        style.map('Treeview',
+                 background=[('selected', self.colors['accent_blue'])],
+                 foreground=[('selected', self.colors['text_primary'])])
+        
+        # Configure Scrollbar
+        style.configure('Vertical.TScrollbar',
+                       background=self.colors['bg_medium'],
+                       troughcolor=self.colors['bg_dark'],
+                       borderwidth=0,
+                       arrowcolor=self.colors['text_secondary'])
+        style.configure('Horizontal.TScrollbar',
+                       background=self.colors['bg_medium'],
+                       troughcolor=self.colors['bg_dark'],
+                       borderwidth=0,
+                       arrowcolor=self.colors['text_secondary'])
+    
     def create_widgets(self):
-        """Create all GUI widgets"""
+        """Create all GUI widgets with modern design"""
         # Main container
-        main_frame = tk.Frame(self.root, bg='#2b2b2b')
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        main_frame = tk.Frame(self.root, bg=self.colors['bg_dark'])
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)
         
-        # Title
-        title = tk.Label(main_frame, 
-                        text="🔍 NetWatch Pro\nComplete Network Visibility & Management", 
-                        font=('Arial', 18, 'bold'), bg='#2b2b2b', fg='#00ff00')
-        title.pack(pady=10)
+        # Enhanced header with gradient-like effect
+        header_frame = tk.Frame(main_frame, bg=self.colors['bg_medium'], height=110)
+        header_frame.pack(fill=tk.X, padx=0, pady=0)
+        header_frame.pack_propagate(False)
         
-        # Status
-        self.status_label = tk.Label(main_frame, text="Status: Ready", 
-                                     font=('Arial', 10), bg='#2b2b2b', fg='#00ff00')
-        self.status_label.pack()
+        # Add a subtle top border accent
+        top_accent = tk.Frame(header_frame, bg=self.colors['accent_blue'], height=3)
+        top_accent.pack(fill=tk.X)
         
-        # Notebook for tabs
-        self.notebook = ttk.Notebook(main_frame)
-        self.notebook.pack(fill=tk.BOTH, expand=True, pady=10)
+        # Title container
+        title_container = tk.Frame(header_frame, bg=self.colors['bg_medium'])
+        title_container.pack(expand=True, fill=tk.BOTH)
         
-        # Tab 1: Device Management (existing content)
-        device_tab = tk.Frame(self.notebook, bg='#2b2b2b')
-        self.notebook.add(device_tab, text='📱 Device Management')
+        # Title with modern font and gradient-like color
+        title = tk.Label(title_container, 
+                        text="🔍 NetWatch Pro", 
+                        font=('Segoe UI', 32, 'bold'), 
+                        bg=self.colors['bg_medium'], 
+                        fg=self.colors['accent_blue'])
+        title.pack(pady=(20, 2))
         
-        # Tab 2: MITM Browser Monitor (new)
-        mitm_tab = tk.Frame(self.notebook, bg='#2b2b2b')
-        self.notebook.add(mitm_tab, text='🕵️ Browsing Monitor (MITM)')
+        # Subtitle with better spacing
+        subtitle = tk.Label(title_container,
+                           text="Complete Network Visibility & Management",
+                           font=('Segoe UI', 11),
+                           bg=self.colors['bg_medium'],
+                           fg=self.colors['text_secondary'])
+        subtitle.pack(pady=(0, 10))
         
-        # Create device management content (move existing to tab)
+        # Enhanced status bar
+        status_frame = tk.Frame(main_frame, bg=self.colors['bg_light'], height=40)
+        status_frame.pack(fill=tk.X, padx=0, pady=0)
+        status_frame.pack_propagate(False)
+        
+        # Status indicator with icon
+        status_container = tk.Frame(status_frame, bg=self.colors['bg_light'])
+        status_container.pack(side=tk.LEFT, padx=20, pady=8)
+        
+        self.status_label = tk.Label(status_container, 
+                                     text="● Ready", 
+                                     font=('Segoe UI', 10, 'bold'), 
+                                     bg=self.colors['bg_light'], 
+                                     fg=self.colors['accent_green'])
+        self.status_label.pack(side=tk.LEFT)
+        
+        # Content container with padding
+        content_container = tk.Frame(main_frame, bg=self.colors['bg_dark'])
+        content_container.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
+        
+        # Notebook for tabs with modern styling
+        self.notebook = ttk.Notebook(content_container)
+        self.notebook.pack(fill=tk.BOTH, expand=True)
+        
+        # Tab 1: Device Management
+        device_tab = tk.Frame(self.notebook, bg=self.colors['bg_dark'])
+        self.notebook.add(device_tab, text='📱  Device Management')
+        
+        # Tab 2: MITM Browser Monitor
+        mitm_tab = tk.Frame(self.notebook, bg=self.colors['bg_dark'])
+        self.notebook.add(mitm_tab, text='🕵️  Traffic Monitor')
+        
+        # Create tab content
         self._create_device_tab(device_tab)
-        
-        # Create MITM browser monitor tab
         self._create_mitm_tab(mitm_tab)
         
-        # Bottom - Logs (outside tabs)
-        log_frame = tk.Frame(main_frame, bg='#2b2b2b')
-        log_frame.pack(fill=tk.BOTH, expand=True, pady=10)
+        # Enhanced Activity Log section
+        log_container = tk.Frame(main_frame, bg=self.colors['bg_dark'])
+        log_container.pack(fill=tk.BOTH, expand=True, padx=15, pady=(5, 15))
         
-        tk.Label(log_frame, text="📋 Activity Log", bg='#2b2b2b', fg='#00ff00',
-                font=('Arial', 12, 'bold')).pack()
+        # Log header with modern card style
+        log_header = tk.Frame(log_container, bg=self.colors['bg_medium'], height=35)
+        log_header.pack(fill=tk.X)
+        log_header.pack_propagate(False)
         
-        self.log_text = scrolledtext.ScrolledText(log_frame, height=10, 
-                                                  bg='#1b1b1b', fg='#00ff00',
-                                                  font=('Courier', 9))
+        tk.Label(log_header, text="📋 Activity Log", 
+                bg=self.colors['bg_medium'], 
+                fg=self.colors['text_primary'],
+                font=('Segoe UI', 11, 'bold')).pack(side=tk.LEFT, padx=15, pady=8)
+        
+        # Log content
+        log_content = tk.Frame(log_container, bg=self.colors['bg_card'])
+        log_content.pack(fill=tk.BOTH, expand=True)
+        
+        self.log_text = scrolledtext.ScrolledText(log_content, height=10, 
+                                                  bg=self.colors['bg_card'], 
+                                                  fg=self.colors['text_primary'],
+                                                  font=('Consolas', 9),
+                                                  borderwidth=0,
+                                                  relief=tk.FLAT,
+                                                  padx=10,
+                                                  pady=8)
         self.log_text.pack(fill=tk.BOTH, expand=True)
     
     def _create_device_tab(self, parent):
-        """Create device management tab content"""
+        """Create device management tab content with modern design"""
         # Main content area
-        content_frame = tk.Frame(parent, bg='#2b2b2b')
-        content_frame.pack(fill=tk.BOTH, expand=True, pady=10)
+        content_frame = tk.Frame(parent, bg=self.colors['bg_dark'])
+        content_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
         
-        # Device list (full width)
-        left_frame = tk.Frame(content_frame, bg='#2b2b2b')
-        left_frame.pack(fill=tk.BOTH, expand=True, padx=5)
+        # Device list card
+        device_card = tk.Frame(content_frame, bg=self.colors['bg_card'], relief=tk.FLAT)
+        device_card.pack(fill=tk.BOTH, expand=True)
         
-        tk.Label(left_frame, text="📱 Connected Devices (ARP Scan)", 
-                bg='#2b2b2b', fg='#00ff00', font=('Arial', 12, 'bold')).pack()
+        # Card header
+        header_frame = tk.Frame(device_card, bg=self.colors['bg_medium'], height=45)
+        header_frame.pack(fill=tk.X)
+        header_frame.pack_propagate(False)
         
-        # Device treeview
-        tree_frame = tk.Frame(left_frame, bg='#2b2b2b')
-        tree_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        tk.Label(header_frame, text="📱 Connected Devices", 
+                bg=self.colors['bg_medium'], 
+                fg=self.colors['text_primary'], 
+                font=('Segoe UI', 13, 'bold')).pack(side=tk.LEFT, padx=20, pady=10)
         
-        self.devices_tree = ttk.Treeview(tree_frame, 
+        # Device treeview container with padding
+        tree_container = tk.Frame(device_card, bg=self.colors['bg_card'])
+        tree_container.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+        
+        self.devices_tree = ttk.Treeview(tree_container, 
                                         columns=('IP', 'MAC', 'Manufacturer', 'Type', 'OS', 'Status'),
                                         show='tree headings', height=15)
         
@@ -125,56 +270,69 @@ class HybridRouterGUI:
         self.devices_tree.column('OS', width=80)
         self.devices_tree.column('Status', width=80)
         
-        scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.devices_tree.yview)
+        scrollbar = ttk.Scrollbar(tree_container, orient=tk.VERTICAL, command=self.devices_tree.yview)
         self.devices_tree.configure(yscrollcommand=scrollbar.set)
-        self.devices_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.devices_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y, pady=5)
         
-        # Add right-click context menu for renaming
+        # Add right-click context menu
         self.devices_tree.bind("<Button-3>", self.show_context_menu)
         
-        # Buttons
-        btn_frame = tk.Frame(left_frame, bg='#2b2b2b')
-        btn_frame.pack(fill=tk.X, pady=5)
+        # Action buttons with modern styling
+        btn_container = tk.Frame(device_card, bg=self.colors['bg_card'])
+        btn_container.pack(fill=tk.X, padx=15, pady=15)
         
-        tk.Button(btn_frame, text="🔄 Quick Scan", command=self.scan_devices,
-                 bg='#0066cc', fg='white', font=('Arial', 10, 'bold'),
-                 padx=15, pady=8).pack(side=tk.LEFT, padx=5)
+        # Primary actions
+        primary_btn_frame = tk.Frame(btn_container, bg=self.colors['bg_card'])
+        primary_btn_frame.pack(fill=tk.X, pady=(0, 8))
         
-        tk.Button(btn_frame, text="🔍 Complete Discovery", command=self.complete_discovery,
-                 bg='#0066cc', fg='white', font=('Arial', 10, 'bold'),
-                 padx=15, pady=8).pack(side=tk.LEFT, padx=5)
+        self._create_modern_button(primary_btn_frame, "🔄 Quick Scan", self.scan_devices,
+                                   self.colors['accent_blue'], side=tk.LEFT, padx=(0, 8))
         
-        tk.Button(btn_frame, text="🕵️ MITM Scan", command=self.mitm_scan,
-                 bg='#dc3545', fg='white', font=('Arial', 10, 'bold'),
-                 padx=15, pady=8).pack(side=tk.LEFT, padx=5)
+        self._create_modern_button(primary_btn_frame, "🔍 Complete Discovery", self.complete_discovery,
+                                   self.colors['accent_purple'], side=tk.LEFT, padx=(0, 8))
         
-        tk.Button(btn_frame, text="🚫 Block Selected (Python)", command=self.block_selected,
-                 bg='#cc0000', fg='white', font=('Arial', 10, 'bold'),
-                 padx=15, pady=8).pack(side=tk.LEFT, padx=5)
+        self._create_modern_button(primary_btn_frame, "🕵️ MITM Scan", self.mitm_scan,
+                                   self.colors['accent_orange'], side=tk.LEFT, padx=(0, 8))
         
-        tk.Button(btn_frame, text="✅ Unblock Selected", command=self.unblock_selected,
-                 bg='#00aa00', fg='white', font=('Arial', 10, 'bold'),
-                 padx=15, pady=8).pack(side=tk.LEFT, padx=5)
+        # Device actions
+        device_btn_frame = tk.Frame(btn_container, bg=self.colors['bg_card'])
+        device_btn_frame.pack(fill=tk.X)
         
-        # Manual MAC entry
-        manual_frame = tk.Frame(left_frame, bg='#2b2b2b')
-        manual_frame.pack(fill=tk.X, pady=5)
+        self._create_modern_button(device_btn_frame, "🚫 Block Device", self.block_selected,
+                                   self.colors['accent_red'], side=tk.LEFT, padx=(0, 8))
         
-        tk.Label(manual_frame, text="Manual MAC:", bg='#2b2b2b', fg='#00ff00',
-                font=('Arial', 10)).pack(side=tk.LEFT, padx=5)
+        self._create_modern_button(device_btn_frame, "✅ Unblock Device", self.unblock_selected,
+                                   self.colors['accent_green'], side=tk.LEFT, padx=(0, 8))
         
-        self.manual_mac_entry = tk.Entry(manual_frame, font=('Courier', 10), width=20)
-        self.manual_mac_entry.pack(side=tk.LEFT, padx=5)
+        # Manual MAC entry section with modern card
+        manual_card = tk.Frame(content_frame, bg=self.colors['bg_card'], relief=tk.FLAT)
+        manual_card.pack(fill=tk.X, pady=(10, 0))
+        
+        manual_frame = tk.Frame(manual_card, bg=self.colors['bg_card'])
+        manual_frame.pack(fill=tk.X, padx=20, pady=15)
+        
+        tk.Label(manual_frame, text="Manual MAC Control:", 
+                bg=self.colors['bg_card'], 
+                fg=self.colors['text_secondary'],
+                font=('Segoe UI', 10, 'bold')).pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.manual_mac_entry = tk.Entry(manual_frame, 
+                                         font=('Consolas', 10), 
+                                         width=20,
+                                         bg=self.colors['bg_medium'],
+                                         fg=self.colors['text_primary'],
+                                         insertbackground=self.colors['text_primary'],
+                                         relief=tk.FLAT,
+                                         borderwidth=2)
+        self.manual_mac_entry.pack(side=tk.LEFT, padx=(0, 10), ipady=5)
         self.manual_mac_entry.insert(0, "AA:BB:CC:DD:EE:FF")
         
-        tk.Button(manual_frame, text="🚫 Block", command=self.block_manual,
-                 bg='#cc0000', fg='white', font=('Arial', 9, 'bold'),
-                 padx=10, pady=5).pack(side=tk.LEFT, padx=2)
+        self._create_modern_button(manual_frame, "🚫 Block", self.block_manual,
+                                   self.colors['accent_red'], side=tk.LEFT, padx=(0, 5))
         
-        tk.Button(manual_frame, text="✅ Unblock", command=self.unblock_manual,
-                 bg='#00aa00', fg='white', font=('Arial', 9, 'bold'),
-                 padx=10, pady=5).pack(side=tk.LEFT, padx=2)
+        self._create_modern_button(manual_frame, "✅ Unblock", self.unblock_manual,
+                                   self.colors['accent_green'], side=tk.LEFT)
     
     def _create_mitm_tab(self, parent):
         """Create MITM real-time traffic monitoring tab"""
@@ -291,19 +449,97 @@ class HybridRouterGUI:
         # Right-click menu for device traffic
         self.traffic_tree.bind("<Button-3>", self.show_traffic_context_menu)
     
-    def log(self, message, level="INFO"):
-        """Add message to log"""
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        colors = {"INFO": "#00ff00", "SUCCESS": "#00ff00", "ERROR": "#ff0000", "WARNING": "#ffaa00"}
+    def _create_modern_button(self, parent, text, command, bg_color, **pack_options):
+        """Create a modern styled button with rounded appearance and smooth hover effects"""
+        # Create container for rounded effect
+        container = tk.Frame(parent, bg=parent['bg'])
+        container.pack(**pack_options)
         
-        log_entry = f"[{timestamp}] [{level}] {message}\n"
-        self.log_text.insert(tk.END, log_entry)
+        btn = tk.Button(container, text=text, command=command,
+                       bg=bg_color, 
+                       fg=self.colors['text_primary'],
+                       font=('Segoe UI', 10, 'bold'),
+                       padx=18, 
+                       pady=8,
+                       relief=tk.FLAT,
+                       cursor='hand2',
+                       activebackground=self._lighten_color(bg_color),
+                       activeforeground=self.colors['text_primary'],
+                       borderwidth=0,
+                       highlightthickness=0)
+        btn.pack(padx=1, pady=1)
+        
+        # Enhanced hover effects with smooth transitions
+        def on_enter(e):
+            btn['bg'] = self._lighten_color(bg_color)
+            btn['font'] = ('Segoe UI', 10, 'bold')
+        
+        def on_leave(e):
+            btn['bg'] = bg_color
+            btn['font'] = ('Segoe UI', 10, 'bold')
+        
+        btn.bind("<Enter>", on_enter)
+        btn.bind("<Leave>", on_leave)
+        return btn
+    
+    def _lighten_color(self, hex_color):
+        """Lighten a hex color by 15% for hover effect"""
+        hex_color = hex_color.lstrip('#')
+        r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
+        r = min(255, int(r * 1.15))
+        g = min(255, int(g * 1.15))
+        b = min(255, int(b * 1.15))
+        return f'#{r:02x}{g:02x}{b:02x}'
+    
+    def _darken_color(self, hex_color):
+        """Darken a hex color by 15%"""
+        hex_color = hex_color.lstrip('#')
+        r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
+        r = max(0, int(r * 0.85))
+        g = max(0, int(g * 0.85))
+        b = max(0, int(b * 0.85))
+        return f'#{r:02x}{g:02x}{b:02x}'
+    
+    def log(self, message, level="INFO"):
+        """Add message to log with modern colors and tags"""
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        
+        # Configure tags for colored text
+        self.log_text.tag_config("timestamp", foreground=self.colors['text_muted'])
+        self.log_text.tag_config("INFO", foreground=self.colors['accent_cyan'])
+        self.log_text.tag_config("SUCCESS", foreground=self.colors['accent_green'])
+        self.log_text.tag_config("ERROR", foreground=self.colors['accent_red'])
+        self.log_text.tag_config("WARNING", foreground=self.colors['accent_orange'])
+        
+        # Insert with tags
+        self.log_text.insert(tk.END, f"[{timestamp}] ", "timestamp")
+        self.log_text.insert(tk.END, f"[{level}] ", level)
+        self.log_text.insert(tk.END, f"{message}\n")
         self.log_text.see(tk.END)
         self.log_text.update()
     
-    def update_status(self, text):
-        """Update status label"""
-        self.status_label.config(text=f"Status: {text}")
+    def update_status(self, text, status_type="info"):
+        """Update status label with color coding"""
+        status_colors = {
+            "info": self.colors['accent_cyan'],
+            "success": self.colors['accent_green'],
+            "error": self.colors['accent_red'],
+            "warning": self.colors['accent_orange'],
+            "scanning": self.colors['accent_blue']
+        }
+        
+        icons = {
+            "info": "●",
+            "success": "✓",
+            "error": "✗",
+            "warning": "⚠",
+            "scanning": "⟳"
+        }
+        
+        icon = icons.get(status_type, "●")
+        color = status_colors.get(status_type, self.colors['text_secondary'])
+        
+        self.status_label.config(text=f"{icon} {text}", fg=color)
         self.status_label.update()
     
     def run_in_thread(self, func, *args):
@@ -896,14 +1132,20 @@ class HybridRouterGUI:
         # Select the item
         self.devices_tree.selection_set(item_id)
         
-        # Create context menu
-        menu = tk.Menu(self.root, tearoff=0, bg='#2b2b2b', fg='white', 
-                      activebackground='#0066cc', activeforeground='white')
-        menu.add_command(label="✏️ Rename Device", command=self.rename_device)
-        menu.add_command(label="🏷️ Set Device Type", command=self.set_device_type)
+        # Create modern context menu
+        menu = tk.Menu(self.root, tearoff=0, 
+                      bg=self.colors['bg_card'], 
+                      fg=self.colors['text_primary'],
+                      activebackground=self.colors['accent_blue'], 
+                      activeforeground=self.colors['text_primary'],
+                      borderwidth=1,
+                      relief=tk.FLAT,
+                      font=('Segoe UI', 9))
+        menu.add_command(label="✏️  Rename Device", command=self.rename_device)
+        menu.add_command(label="🏷️  Set Device Type", command=self.set_device_type)
         menu.add_separator()
-        menu.add_command(label="📋 Copy MAC Address", command=self.copy_mac)
-        menu.add_command(label="📋 Copy IP Address", command=self.copy_ip)
+        menu.add_command(label="📋  Copy MAC Address", command=self.copy_mac)
+        menu.add_command(label="📋  Copy IP Address", command=self.copy_ip)
         
         # Show menu
         menu.post(event.x_root, event.y_root)
@@ -920,13 +1162,14 @@ class HybridRouterGUI:
         mac = item['values'][1]
         ip = item['values'][0]
         
-        # Create rename dialog
+        # Create modern dialog
         dialog = tk.Toplevel(self.root)
         dialog.title("Rename Device")
-        dialog.geometry("400x200")
-        dialog.configure(bg='#2b2b2b')
+        dialog.geometry("450x240")
+        dialog.configure(bg=self.colors['bg_dark'])
         dialog.transient(self.root)
         dialog.grab_set()
+        dialog.resizable(False, False)
         
         # Center dialog
         dialog.update_idletasks()
@@ -934,18 +1177,39 @@ class HybridRouterGUI:
         y = (dialog.winfo_screenheight() // 2) - (dialog.winfo_height() // 2)
         dialog.geometry(f"+{x}+{y}")
         
+        # Header
+        header = tk.Frame(dialog, bg=self.colors['bg_medium'], height=50)
+        header.pack(fill=tk.X)
+        header.pack_propagate(False)
+        
+        tk.Label(header, text="✏️ Rename Device", 
+                font=('Segoe UI', 14, 'bold'),
+                bg=self.colors['bg_medium'], 
+                fg=self.colors['accent_blue']).pack(pady=15)
+        
         # Content
-        tk.Label(dialog, text="Rename Device", font=('Arial', 14, 'bold'),
-                bg='#2b2b2b', fg='#00ff00').pack(pady=10)
+        content = tk.Frame(dialog, bg=self.colors['bg_dark'])
+        content.pack(fill=tk.BOTH, expand=True, padx=25, pady=20)
         
-        tk.Label(dialog, text=f"MAC: {mac}\nIP: {ip}", font=('Arial', 9),
-                bg='#2b2b2b', fg='#888888').pack(pady=5)
+        tk.Label(content, text=f"MAC: {mac}  |  IP: {ip}", 
+                font=('Consolas', 9),
+                bg=self.colors['bg_dark'], 
+                fg=self.colors['text_secondary']).pack(pady=(0, 15))
         
-        tk.Label(dialog, text="New Name:", font=('Arial', 10),
-                bg='#2b2b2b', fg='white').pack(pady=5)
+        tk.Label(content, text="New Name:", 
+                font=('Segoe UI', 10),
+                bg=self.colors['bg_dark'], 
+                fg=self.colors['text_primary']).pack(anchor=tk.W, pady=(0, 5))
         
-        name_entry = tk.Entry(dialog, font=('Arial', 12), width=30)
-        name_entry.pack(pady=5)
+        name_entry = tk.Entry(content, 
+                             font=('Segoe UI', 11), 
+                             width=35,
+                             bg=self.colors['bg_medium'],
+                             fg=self.colors['text_primary'],
+                             insertbackground=self.colors['text_primary'],
+                             relief=tk.FLAT,
+                             borderwidth=2)
+        name_entry.pack(ipady=8, pady=(0, 20))
         name_entry.insert(0, current_name)
         name_entry.select_range(0, tk.END)
         name_entry.focus()
@@ -966,16 +1230,22 @@ class HybridRouterGUI:
             dialog.destroy()
         
         # Buttons
-        btn_frame = tk.Frame(dialog, bg='#2b2b2b')
-        btn_frame.pack(pady=15)
+        btn_frame = tk.Frame(content, bg=self.colors['bg_dark'])
+        btn_frame.pack(pady=(0, 0))
         
-        tk.Button(btn_frame, text="💾 Save", command=save_rename,
-                 bg='#00aa00', fg='white', font=('Arial', 10, 'bold'),
-                 padx=20, pady=5).pack(side=tk.LEFT, padx=5)
+        save_btn = tk.Button(btn_frame, text="💾 Save", command=save_rename,
+                            bg=self.colors['accent_green'], 
+                            fg=self.colors['text_primary'], 
+                            font=('Segoe UI', 10, 'bold'),
+                            padx=25, pady=8, relief=tk.FLAT, cursor='hand2')
+        save_btn.pack(side=tk.LEFT, padx=(0, 8))
         
-        tk.Button(btn_frame, text="❌ Cancel", command=cancel,
-                 bg='#666666', fg='white', font=('Arial', 10, 'bold'),
-                 padx=20, pady=5).pack(side=tk.LEFT, padx=5)
+        cancel_btn = tk.Button(btn_frame, text="❌ Cancel", command=cancel,
+                              bg=self.colors['bg_light'], 
+                              fg=self.colors['text_secondary'], 
+                              font=('Segoe UI', 10, 'bold'),
+                              padx=25, pady=8, relief=tk.FLAT, cursor='hand2')
+        cancel_btn.pack(side=tk.LEFT)
         
         # Enter to save
         name_entry.bind('<Return>', lambda e: save_rename())
@@ -993,13 +1263,14 @@ class HybridRouterGUI:
         mac = item['values'][1]
         current_type = item['values'][3]
         
-        # Create type selection dialog
+        # Create modern type selection dialog
         dialog = tk.Toplevel(self.root)
         dialog.title("Set Device Type")
-        dialog.geometry("400x450")
-        dialog.configure(bg='#2b2b2b')
+        dialog.geometry("450x520")
+        dialog.configure(bg=self.colors['bg_dark'])
         dialog.transient(self.root)
         dialog.grab_set()
+        dialog.resizable(False, False)
         
         # Center dialog
         dialog.update_idletasks()
@@ -1007,15 +1278,29 @@ class HybridRouterGUI:
         y = (dialog.winfo_screenheight() // 2) - (dialog.winfo_height() // 2)
         dialog.geometry(f"+{x}+{y}")
         
+        # Header
+        header = tk.Frame(dialog, bg=self.colors['bg_medium'], height=50)
+        header.pack(fill=tk.X)
+        header.pack_propagate(False)
+        
+        tk.Label(header, text="🏷️ Set Device Type", 
+                font=('Segoe UI', 14, 'bold'),
+                bg=self.colors['bg_medium'], 
+                fg=self.colors['accent_blue']).pack(pady=15)
+        
         # Content
-        tk.Label(dialog, text="Set Device Type", font=('Arial', 14, 'bold'),
-                bg='#2b2b2b', fg='#00ff00').pack(pady=10)
+        content = tk.Frame(dialog, bg=self.colors['bg_dark'])
+        content.pack(fill=tk.BOTH, expand=True, padx=25, pady=20)
         
-        tk.Label(dialog, text=f"{hostname}\nMAC: {mac}", font=('Arial', 9),
-                bg='#2b2b2b', fg='#888888').pack(pady=5)
+        tk.Label(content, text=f"{hostname}  |  MAC: {mac}", 
+                font=('Consolas', 9),
+                bg=self.colors['bg_dark'], 
+                fg=self.colors['text_secondary']).pack(pady=(0, 15))
         
-        tk.Label(dialog, text="Select Device Type:", font=('Arial', 10),
-                bg='#2b2b2b', fg='white').pack(pady=10)
+        tk.Label(content, text="Select Device Type:", 
+                font=('Segoe UI', 10),
+                bg=self.colors['bg_dark'], 
+                fg=self.colors['text_primary']).pack(anchor=tk.W, pady=(0, 8))
         
         # Device type options
         device_types = [
@@ -1032,16 +1317,26 @@ class HybridRouterGUI:
         ]
         
         # Listbox for selection
-        list_frame = tk.Frame(dialog, bg='#2b2b2b')
-        list_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        list_frame = tk.Frame(content, bg=self.colors['bg_dark'])
+        list_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
         
-        scrollbar = tk.Scrollbar(list_frame)
+        scrollbar = tk.Scrollbar(list_frame, 
+                                bg=self.colors['bg_medium'],
+                                troughcolor=self.colors['bg_dark'])
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        type_listbox = tk.Listbox(list_frame, font=('Arial', 10), height=15,
-                                  bg='#1b1b1b', fg='white',
+        type_listbox = tk.Listbox(list_frame, 
+                                  font=('Segoe UI', 10), 
+                                  height=15,
+                                  bg=self.colors['bg_medium'], 
+                                  fg=self.colors['text_primary'],
+                                  selectbackground=self.colors['accent_blue'],
+                                  selectforeground=self.colors['text_primary'],
                                   yscrollcommand=scrollbar.set,
-                                  selectmode=tk.SINGLE)
+                                  selectmode=tk.SINGLE,
+                                  relief=tk.FLAT,
+                                  borderwidth=0,
+                                  highlightthickness=0)
         type_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.config(command=type_listbox.yview)
         
@@ -1069,16 +1364,22 @@ class HybridRouterGUI:
             dialog.destroy()
         
         # Buttons
-        btn_frame = tk.Frame(dialog, bg='#2b2b2b')
-        btn_frame.pack(pady=10)
+        btn_frame = tk.Frame(content, bg=self.colors['bg_dark'])
+        btn_frame.pack()
         
-        tk.Button(btn_frame, text="💾 Save", command=save_type,
-                 bg='#00aa00', fg='white', font=('Arial', 10, 'bold'),
-                 padx=20, pady=5).pack(side=tk.LEFT, padx=5)
+        save_btn = tk.Button(btn_frame, text="💾 Save", command=save_type,
+                            bg=self.colors['accent_green'], 
+                            fg=self.colors['text_primary'], 
+                            font=('Segoe UI', 10, 'bold'),
+                            padx=25, pady=8, relief=tk.FLAT, cursor='hand2')
+        save_btn.pack(side=tk.LEFT, padx=(0, 8))
         
-        tk.Button(btn_frame, text="❌ Cancel", command=cancel,
-                 bg='#666666', fg='white', font=('Arial', 10, 'bold'),
-                 padx=20, pady=5).pack(side=tk.LEFT, padx=5)
+        cancel_btn = tk.Button(btn_frame, text="❌ Cancel", command=cancel,
+                              bg=self.colors['bg_light'], 
+                              fg=self.colors['text_secondary'], 
+                              font=('Segoe UI', 10, 'bold'),
+                              padx=25, pady=8, relief=tk.FLAT, cursor='hand2')
+        cancel_btn.pack(side=tk.LEFT)
         
         # Double-click or Enter to save
         type_listbox.bind('<Double-Button-1>', lambda e: save_type())
