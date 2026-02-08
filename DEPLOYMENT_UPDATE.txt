@@ -11,13 +11,15 @@ MITM Browser Monitor functionality!
   What's New in This Update
 ════════════════════════════════════════════════════════════════════════
 
-✨ MITM Browser Monitor
-   - Real-time HTTP/HTTPS traffic capture
-   - Shows what websites users are browsing
-   - Live URL tracking with timestamps
-   - Device attribution (which device visited which site)
-   - Export browsing history to JSON
-   - Block devices directly from browsing history
+✨ MITM Traffic Monitor (Updated)
+   - Real-time network traffic monitoring
+   - Shows upload/download per device (KB)
+   - Live bandwidth usage tracking
+   - Connection counting
+   - Packet statistics
+   - Last activity timestamps
+   - Device blocking from traffic view
+   - Export traffic data to JSON
 
 📊 Enhanced Statistics
    - HTTP vs HTTPS request counts
@@ -107,22 +109,30 @@ Tab 1: 📱 Device Management
    - Device naming and management
    - Blocked devices list
 
-Tab 2: 🕵️ Browsing Monitor (MITM) ⭐ NEW
+Tab 2: 📡 MITM Traffic Monitor ⭐ UPDATED
    - Start/Stop MITM monitoring
-   - Real-time browsing history table showing:
-     * Time
+   - Real-time traffic table showing:
      * Device name
      * IP address
-     * Protocol (HTTP/HTTPS)
-     * Method (GET/POST/CONNECT)
-     * Full URL or website
-   - Statistics dashboard
-   - Clear history button
-   - Export to JSON button
+     * MAC address
+     * Upload (KB) - data sent from device
+     * Download (KB) - data received by device
+     * Total packets
+     * Active connections
+     * Last activity time
+   - Network statistics dashboard:
+     * Total devices
+     * Total packets
+     * Total upload (KB)
+     * Total download (KB)
+   - Control buttons:
+     * Clear history (reset stats)
+     * Export to JSON
    - Right-click context menu:
-     * Copy URL
-     * Copy IP
+     * Copy MAC address
+     * Copy IP address
      * Block device
+     * Reset traffic stats (per device)
 
 Bottom Panel: 📋 Activity Log
    - All operations logged
