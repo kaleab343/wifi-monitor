@@ -27,6 +27,10 @@ class HybridRouterGUI:
         self.devices = []
         self.blocked_macs = []
         
+        # MITM Browser Monitor
+        self.mitm_monitor = None
+        self.mitm_monitor_thread = None
+        
         # Create UI
         self.create_widgets()
         
@@ -50,8 +54,40 @@ class HybridRouterGUI:
                                      font=('Arial', 10), bg='#2b2b2b', fg='#00ff00')
         self.status_label.pack()
         
+        # Notebook for tabs
+        self.notebook = ttk.Notebook(main_frame)
+        self.notebook.pack(fill=tk.BOTH, expand=True, pady=10)
+        
+        # Tab 1: Device Management (existing content)
+        device_tab = tk.Frame(self.notebook, bg='#2b2b2b')
+        self.notebook.add(device_tab, text='📱 Device Management')
+        
+        # Tab 2: MITM Browser Monitor (new)
+        mitm_tab = tk.Frame(self.notebook, bg='#2b2b2b')
+        self.notebook.add(mitm_tab, text='🕵️ Browsing Monitor (MITM)')
+        
+        # Create device management content (move existing to tab)
+        self._create_device_tab(device_tab)
+        
+        # Create MITM browser monitor tab
+        self._create_mitm_tab(mitm_tab)
+        
+        # Bottom - Logs (outside tabs)
+        log_frame = tk.Frame(main_frame, bg='#2b2b2b')
+        log_frame.pack(fill=tk.BOTH, expand=True, pady=10)
+        
+        tk.Label(log_frame, text="📋 Activity Log", bg='#2b2b2b', fg='#00ff00',
+                font=('Arial', 12, 'bold')).pack()
+        
+        self.log_text = scrolledtext.ScrolledText(log_frame, height=10, 
+                                                  bg='#1b1b1b', fg='#00ff00',
+                                                  font=('Courier', 9))
+        self.log_text.pack(fill=tk.BOTH, expand=True)
+    
+    def _create_device_tab(self, parent):
+        """Create device management tab content"""
         # Main content area
-        content_frame = tk.Frame(main_frame, bg='#2b2b2b')
+        content_frame = tk.Frame(parent, bg='#2b2b2b')
         content_frame.pack(fill=tk.BOTH, expand=True, pady=10)
         
         # Left side - Device list (larger panel)
@@ -155,18 +191,117 @@ class HybridRouterGUI:
         tk.Button(right_frame, text="🔄 Refresh Blocked List", command=self.refresh_blocked,
                  bg='#666666', fg='white', font=('Arial', 10, 'bold'),
                  padx=15, pady=8).pack(pady=5)
+    
+    def _create_mitm_tab(self, parent):
+        """Create MITM browser monitoring tab"""
+        # Top control panel
+        control_frame = tk.Frame(parent, bg='#2b2b2b')
+        control_frame.pack(fill=tk.X, padx=10, pady=10)
         
-        # Bottom - Logs
-        log_frame = tk.Frame(main_frame, bg='#2b2b2b')
-        log_frame.pack(fill=tk.BOTH, expand=True, pady=10)
+        tk.Label(control_frame, text="🕵️ Man-in-the-Middle Browser Monitor", 
+                bg='#2b2b2b', fg='#ff6600', font=('Arial', 14, 'bold')).pack()
         
-        tk.Label(log_frame, text="📋 Activity Log", bg='#2b2b2b', fg='#00ff00',
-                font=('Arial', 12, 'bold')).pack()
+        tk.Label(control_frame, text="⚠️ Captures all HTTP/HTTPS traffic - Shows what websites users are browsing", 
+                bg='#2b2b2b', fg='#ffaa00', font=('Arial', 9)).pack(pady=5)
         
-        self.log_text = scrolledtext.ScrolledText(log_frame, height=10, 
-                                                  bg='#1b1b1b', fg='#00ff00',
-                                                  font=('Courier', 9))
-        self.log_text.pack(fill=tk.BOTH, expand=True)
+        # Control buttons
+        btn_frame = tk.Frame(control_frame, bg='#2b2b2b')
+        btn_frame.pack(pady=10)
+        
+        self.mitm_start_btn = tk.Button(btn_frame, text="▶️ Start MITM Monitor", 
+                                        command=self.start_mitm_monitor,
+                                        bg='#00aa00', fg='white', 
+                                        font=('Arial', 11, 'bold'),
+                                        padx=20, pady=10)
+        self.mitm_start_btn.pack(side=tk.LEFT, padx=5)
+        
+        self.mitm_stop_btn = tk.Button(btn_frame, text="⏹️ Stop Monitor", 
+                                       command=self.stop_mitm_monitor,
+                                       bg='#cc0000', fg='white', 
+                                       font=('Arial', 11, 'bold'),
+                                       padx=20, pady=10, state=tk.DISABLED)
+        self.mitm_stop_btn.pack(side=tk.LEFT, padx=5)
+        
+        tk.Button(btn_frame, text="🗑️ Clear History", 
+                 command=self.clear_browsing_history,
+                 bg='#666666', fg='white', 
+                 font=('Arial', 11, 'bold'),
+                 padx=20, pady=10).pack(side=tk.LEFT, padx=5)
+        
+        tk.Button(btn_frame, text="💾 Export to JSON", 
+                 command=self.export_browsing_history,
+                 bg='#0066cc', fg='white', 
+                 font=('Arial', 11, 'bold'),
+                 padx=20, pady=10).pack(side=tk.LEFT, padx=5)
+        
+        # Status indicator
+        self.mitm_status_label = tk.Label(control_frame, 
+                                          text="Status: Idle", 
+                                          bg='#2b2b2b', fg='#888888',
+                                          font=('Arial', 10, 'bold'))
+        self.mitm_status_label.pack(pady=5)
+        
+        # Statistics panel
+        stats_frame = tk.Frame(parent, bg='#3b3b3b', relief=tk.RAISED, borderwidth=2)
+        stats_frame.pack(fill=tk.X, padx=10, pady=5)
+        
+        tk.Label(stats_frame, text="📊 Statistics", 
+                bg='#3b3b3b', fg='#00ff00', 
+                font=('Arial', 11, 'bold')).pack(pady=5)
+        
+        stats_inner = tk.Frame(stats_frame, bg='#3b3b3b')
+        stats_inner.pack(fill=tk.X, padx=10, pady=5)
+        
+        self.mitm_stats_label = tk.Label(stats_inner, 
+                                         text="URLs Captured: 0 | HTTP: 0 | HTTPS: 0 | Devices: 0",
+                                         bg='#3b3b3b', fg='#00ffff',
+                                         font=('Courier', 10, 'bold'))
+        self.mitm_stats_label.pack()
+        
+        # Browsing history table
+        history_frame = tk.Frame(parent, bg='#2b2b2b')
+        history_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        
+        tk.Label(history_frame, text="🌐 Browsing History (Real-time)", 
+                bg='#2b2b2b', fg='#00ff00', 
+                font=('Arial', 12, 'bold')).pack(pady=5)
+        
+        # Create treeview for browsing history
+        tree_container = tk.Frame(history_frame, bg='#2b2b2b')
+        tree_container.pack(fill=tk.BOTH, expand=True)
+        
+        self.browsing_tree = ttk.Treeview(tree_container,
+                                         columns=('Time', 'Device', 'IP', 'Protocol', 'Method', 'URL'),
+                                         show='headings', height=20)
+        
+        self.browsing_tree.heading('Time', text='Time')
+        self.browsing_tree.heading('Device', text='Device')
+        self.browsing_tree.heading('IP', text='IP Address')
+        self.browsing_tree.heading('Protocol', text='Protocol')
+        self.browsing_tree.heading('Method', text='Method')
+        self.browsing_tree.heading('URL', text='URL / Website')
+        
+        self.browsing_tree.column('Time', width=80)
+        self.browsing_tree.column('Device', width=120)
+        self.browsing_tree.column('IP', width=100)
+        self.browsing_tree.column('Protocol', width=70)
+        self.browsing_tree.column('Method', width=70)
+        self.browsing_tree.column('URL', width=500)
+        
+        # Scrollbars
+        vsb = ttk.Scrollbar(tree_container, orient=tk.VERTICAL, command=self.browsing_tree.yview)
+        hsb = ttk.Scrollbar(tree_container, orient=tk.HORIZONTAL, command=self.browsing_tree.xview)
+        self.browsing_tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        
+        self.browsing_tree.grid(row=0, column=0, sticky='nsew')
+        vsb.grid(row=0, column=1, sticky='ns')
+        hsb.grid(row=1, column=0, sticky='ew')
+        
+        tree_container.grid_rowconfigure(0, weight=1)
+        tree_container.grid_columnconfigure(0, weight=1)
+        
+        # Right-click menu for browsing history
+        self.browsing_tree.bind("<Button-3>", self.show_browsing_context_menu)
     
     def log(self, message, level="INFO"):
         """Add message to log"""
@@ -978,6 +1113,281 @@ class HybridRouterGUI:
         except Exception as e:
             self.log(f"✗ Failed to save device type: {e}", "ERROR")
             return False
+    
+    # ==================== MITM Browser Monitor Functions ====================
+    
+    def start_mitm_monitor(self):
+        """Start MITM browser monitoring"""
+        self.log("🕵️ Starting MITM Browser Monitor...", "INFO")
+        self.log("⚠️ This requires Administrator privileges!", "WARNING")
+        self.log("📡 Will intercept HTTP/HTTPS traffic and show browsing activity", "INFO")
+        
+        # Check if running as admin on Windows
+        if os.name == 'nt':
+            import ctypes
+            is_admin = ctypes.windll.shell32.IsUserAnAdmin()
+            if not is_admin:
+                self.log("✗ ERROR: Not running as Administrator!", "ERROR")
+                self.log("💡 Right-click run_gui_as_admin_mitm.bat and select 'Run as Administrator'", "INFO")
+                messagebox.showerror("Admin Required",
+                    "MITM Browser Monitor requires Administrator privileges!\n\n"
+                    "Please run: run_gui_as_admin_mitm.bat")
+                return
+        
+        # Update UI
+        self.mitm_start_btn.config(state=tk.DISABLED)
+        self.mitm_stop_btn.config(state=tk.NORMAL)
+        self.mitm_status_label.config(text="Status: 🟢 Monitoring Active", fg='#00ff00')
+        
+        # Start monitor in background thread
+        self.run_in_thread(self._start_mitm_monitor_thread)
+    
+    def _start_mitm_monitor_thread(self):
+        """Background thread for MITM monitoring"""
+        try:
+            # Import MITM browser monitor
+            try:
+                from mitm_browser_monitor import MITMBrowserMonitor
+            except ImportError:
+                self.log("✗ ERROR: mitm_browser_monitor.py not found", "ERROR")
+                self.root.after(0, self._mitm_monitor_stopped)
+                return
+            
+            # Get router IP
+            router_ip = "192.168.1.1"  # Default, can be configured
+            
+            # Create monitor
+            self.log(f"Initializing MITM browser monitor for gateway {router_ip}...", "INFO")
+            self.mitm_monitor = MITMBrowserMonitor(router_ip=router_ip)
+            
+            self.log(f"✓ Interface: {self.mitm_monitor.interface}", "SUCCESS")
+            self.log(f"✓ Gateway: {self.mitm_monitor.router_ip} ({self.mitm_monitor.gateway_mac})", "SUCCESS")
+            self.log(f"✓ My IP: {self.mitm_monitor.my_ip}", "SUCCESS")
+            self.log("", "INFO")
+            self.log("🔄 Enabling IP forwarding...", "INFO")
+            self.log("🎯 Starting ARP poisoning...", "INFO")
+            self.log("📶 Capturing HTTP/HTTPS traffic...", "INFO")
+            self.log("🌐 Browsing activity will appear below in real-time!", "INFO")
+            self.log("", "INFO")
+            
+            # Start monitoring (continuous until stopped)
+            self.mitm_monitor.start_monitoring(
+                duration=None,  # Continuous
+                callback_new_url=self._on_new_url_captured,
+                callback_device_update=self._on_device_update
+            )
+            
+        except Exception as e:
+            self.log(f"✗ MITM monitor error: {e}", "ERROR")
+            import traceback
+            self.log(traceback.format_exc(), "ERROR")
+        finally:
+            self.root.after(0, self._mitm_monitor_stopped)
+    
+    def stop_mitm_monitor(self):
+        """Stop MITM browser monitoring"""
+        self.log("⏹️ Stopping MITM Browser Monitor...", "INFO")
+        
+        if self.mitm_monitor:
+            self.mitm_monitor.stop()
+            self.mitm_monitor = None
+        
+        self._mitm_monitor_stopped()
+    
+    def _mitm_monitor_stopped(self):
+        """Called when MITM monitor stops (UI updates)"""
+        self.mitm_start_btn.config(state=tk.NORMAL)
+        self.mitm_stop_btn.config(state=tk.DISABLED)
+        self.mitm_status_label.config(text="Status: ⚫ Idle", fg='#888888')
+        self.log("✓ MITM Browser Monitor stopped", "SUCCESS")
+    
+    def _on_new_url_captured(self, entry):
+        """Callback when new URL is captured (called from monitor thread)"""
+        # Schedule UI update on main thread
+        self.root.after(0, self._add_browsing_entry, entry)
+    
+    def _on_device_update(self, mac, device_info):
+        """Callback when device info is updated (called from monitor thread)"""
+        # Update statistics on main thread
+        self.root.after(0, self._update_mitm_stats)
+    
+    def _add_browsing_entry(self, entry):
+        """Add browsing entry to the tree (main thread only)"""
+        # Add to treeview
+        self.browsing_tree.insert('', 0,  # Insert at top for newest first
+                                  values=(
+                                      entry['time_display'],
+                                      entry['device_name'],
+                                      entry['device_ip'],
+                                      entry['protocol'],
+                                      entry['method'],
+                                      entry['url']
+                                  ))
+        
+        # Update statistics
+        self._update_mitm_stats()
+        
+        # Auto-scroll to top to show latest
+        children = self.browsing_tree.get_children()
+        if children:
+            self.browsing_tree.see(children[0])
+    
+    def _update_mitm_stats(self):
+        """Update MITM statistics display"""
+        if not self.mitm_monitor:
+            return
+        
+        history = self.mitm_monitor.get_browsing_history()
+        devices = self.mitm_monitor.get_devices()
+        
+        # Count HTTP vs HTTPS
+        http_count = sum(1 for h in history if h['protocol'] == 'HTTP')
+        https_count = sum(1 for h in history if h['protocol'] == 'HTTPS')
+        
+        stats_text = f"URLs Captured: {len(history)} | HTTP: {http_count} | HTTPS: {https_count} | Devices: {len(devices)}"
+        self.mitm_stats_label.config(text=stats_text)
+    
+    def clear_browsing_history(self):
+        """Clear browsing history display"""
+        # Clear treeview
+        for item in self.browsing_tree.get_children():
+            self.browsing_tree.delete(item)
+        
+        # Clear monitor history if running
+        if self.mitm_monitor:
+            with self.mitm_monitor.history_lock:
+                self.mitm_monitor.browsing_history.clear()
+        
+        # Update stats
+        self._update_mitm_stats()
+        
+        self.log("🗑️ Browsing history cleared", "INFO")
+    
+    def export_browsing_history(self):
+        """Export browsing history to JSON file"""
+        if not self.mitm_monitor:
+            messagebox.showwarning("No Data", "MITM monitor is not running. No data to export.")
+            return
+        
+        history = self.mitm_monitor.get_browsing_history()
+        devices = self.mitm_monitor.get_devices()
+        
+        if not history:
+            messagebox.showinfo("No Data", "No browsing history captured yet.")
+            return
+        
+        # Create export data
+        export_data = {
+            'export_time': datetime.now().isoformat(),
+            'total_urls': len(history),
+            'total_devices': len(devices),
+            'browsing_history': history,
+            'devices': devices
+        }
+        
+        # Save to file
+        filename = f"browsing_history_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        
+        try:
+            with open(filename, 'w') as f:
+                json.dump(export_data, f, indent=2)
+            
+            self.log(f"✓ Exported {len(history)} URLs to {filename}", "SUCCESS")
+            messagebox.showinfo("Export Successful", 
+                              f"Browsing history exported to:\n{filename}\n\n"
+                              f"Total URLs: {len(history)}\n"
+                              f"Devices: {len(devices)}")
+        except Exception as e:
+            self.log(f"✗ Export failed: {e}", "ERROR")
+            messagebox.showerror("Export Failed", f"Failed to export:\n{e}")
+    
+    def show_browsing_context_menu(self, event):
+        """Show right-click context menu on browsing history"""
+        # Get selected item
+        item_id = self.browsing_tree.identify_row(event.y)
+        if not item_id:
+            return
+        
+        # Select the item
+        self.browsing_tree.selection_set(item_id)
+        
+        # Create context menu
+        menu = tk.Menu(self.root, tearoff=0, bg='#2b2b2b', fg='white',
+                      activebackground='#0066cc', activeforeground='white')
+        menu.add_command(label="📋 Copy URL", command=self.copy_browsing_url)
+        menu.add_command(label="📋 Copy Device IP", command=self.copy_browsing_ip)
+        menu.add_separator()
+        menu.add_command(label="🚫 Block This Device", command=self.block_from_browsing)
+        
+        # Show menu
+        menu.post(event.x_root, event.y_root)
+    
+    def copy_browsing_url(self):
+        """Copy URL from browsing history to clipboard"""
+        selection = self.browsing_tree.selection()
+        if not selection:
+            return
+        
+        item = self.browsing_tree.item(selection[0])
+        url = item['values'][5]  # URL column
+        
+        self.root.clipboard_clear()
+        self.root.clipboard_append(url)
+        self.log(f"📋 Copied URL: {url}", "INFO")
+    
+    def copy_browsing_ip(self):
+        """Copy IP from browsing history to clipboard"""
+        selection = self.browsing_tree.selection()
+        if not selection:
+            return
+        
+        item = self.browsing_tree.item(selection[0])
+        ip = item['values'][2]  # IP column
+        
+        self.root.clipboard_clear()
+        self.root.clipboard_append(ip)
+        self.log(f"📋 Copied IP: {ip}", "INFO")
+    
+    def block_from_browsing(self):
+        """Block device selected from browsing history"""
+        selection = self.browsing_tree.selection()
+        if not selection:
+            return
+        
+        item = self.browsing_tree.item(selection[0])
+        device_name = item['values'][1]
+        device_ip = item['values'][2]
+        
+        # Find device MAC from IP
+        device_mac = None
+        if self.mitm_monitor:
+            devices = self.mitm_monitor.get_devices()
+            for mac, dev in devices.items():
+                if dev.get('ip') == device_ip:
+                    device_mac = mac
+                    break
+        
+        if not device_mac:
+            messagebox.showwarning("Cannot Block", 
+                                 f"Could not find MAC address for device {device_ip}")
+            return
+        
+        # Check if router
+        if device_ip in ['192.168.1.1', '192.168.0.1']:
+            messagebox.showerror("Cannot Block", "Cannot block the router!")
+            return
+        
+        # Confirm
+        confirm = messagebox.askyesno("Confirm Block",
+                                      f"Block this device?\n\n"
+                                      f"Name: {device_name}\n"
+                                      f"IP: {device_ip}\n"
+                                      f"MAC: {device_mac}\n\n"
+                                      f"This will disconnect the device from WiFi.")
+        
+        if confirm:
+            self.log(f"🚫 Blocking {device_name} ({device_mac})...", "INFO")
+            self.run_in_thread(self._block_device_thread, device_mac, device_name)
 
 
 def main():
