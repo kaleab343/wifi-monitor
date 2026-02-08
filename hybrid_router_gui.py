@@ -193,15 +193,15 @@ class HybridRouterGUI:
                  padx=15, pady=8).pack(pady=5)
     
     def _create_mitm_tab(self, parent):
-        """Create MITM browser monitoring tab"""
+        """Create MITM real-time traffic monitoring tab"""
         # Top control panel
         control_frame = tk.Frame(parent, bg='#2b2b2b')
         control_frame.pack(fill=tk.X, padx=10, pady=10)
         
-        tk.Label(control_frame, text="🕵️ Man-in-the-Middle Browser Monitor", 
+        tk.Label(control_frame, text="🕵️ MITM Traffic Monitor - Live Network Activity", 
                 bg='#2b2b2b', fg='#ff6600', font=('Arial', 14, 'bold')).pack()
         
-        tk.Label(control_frame, text="⚠️ Captures all HTTP/HTTPS traffic - Shows what websites users are browsing", 
+        tk.Label(control_frame, text="⚠️ Shows real-time traffic between router and all connected devices", 
                 bg='#2b2b2b', fg='#ffaa00', font=('Arial', 9)).pack(pady=5)
         
         # Control buttons
@@ -245,7 +245,7 @@ class HybridRouterGUI:
         stats_frame = tk.Frame(parent, bg='#3b3b3b', relief=tk.RAISED, borderwidth=2)
         stats_frame.pack(fill=tk.X, padx=10, pady=5)
         
-        tk.Label(stats_frame, text="📊 Statistics", 
+        tk.Label(stats_frame, text="📊 Network Statistics", 
                 bg='#3b3b3b', fg='#00ff00', 
                 font=('Arial', 11, 'bold')).pack(pady=5)
         
@@ -253,55 +253,59 @@ class HybridRouterGUI:
         stats_inner.pack(fill=tk.X, padx=10, pady=5)
         
         self.mitm_stats_label = tk.Label(stats_inner, 
-                                         text="URLs Captured: 0 | HTTP: 0 | HTTPS: 0 | Devices: 0",
+                                         text="Devices: 0 | Total Packets: 0 | Upload: 0 KB | Download: 0 KB",
                                          bg='#3b3b3b', fg='#00ffff',
                                          font=('Courier', 10, 'bold'))
         self.mitm_stats_label.pack()
         
-        # Browsing history table
-        history_frame = tk.Frame(parent, bg='#2b2b2b')
-        history_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        # Device traffic table (replaces browsing history)
+        traffic_frame = tk.Frame(parent, bg='#2b2b2b')
+        traffic_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
-        tk.Label(history_frame, text="🌐 Browsing History (Real-time)", 
+        tk.Label(traffic_frame, text="📡 Real-time Device Traffic (Router ↔ Devices)", 
                 bg='#2b2b2b', fg='#00ff00', 
                 font=('Arial', 12, 'bold')).pack(pady=5)
         
-        # Create treeview for browsing history
-        tree_container = tk.Frame(history_frame, bg='#2b2b2b')
+        # Create treeview for device traffic
+        tree_container = tk.Frame(traffic_frame, bg='#2b2b2b')
         tree_container.pack(fill=tk.BOTH, expand=True)
         
-        self.browsing_tree = ttk.Treeview(tree_container,
-                                         columns=('Time', 'Device', 'IP', 'Protocol', 'Method', 'URL'),
+        self.traffic_tree = ttk.Treeview(tree_container,
+                                         columns=('Device', 'IP', 'MAC', 'Upload', 'Download', 'Packets', 'Connections', 'Last Activity'),
                                          show='headings', height=20)
         
-        self.browsing_tree.heading('Time', text='Time')
-        self.browsing_tree.heading('Device', text='Device')
-        self.browsing_tree.heading('IP', text='IP Address')
-        self.browsing_tree.heading('Protocol', text='Protocol')
-        self.browsing_tree.heading('Method', text='Method')
-        self.browsing_tree.heading('URL', text='URL / Website')
+        self.traffic_tree.heading('Device', text='Device Name')
+        self.traffic_tree.heading('IP', text='IP Address')
+        self.traffic_tree.heading('MAC', text='MAC Address')
+        self.traffic_tree.heading('Upload', text='↑ Upload (KB)')
+        self.traffic_tree.heading('Download', text='↓ Download (KB)')
+        self.traffic_tree.heading('Packets', text='Total Packets')
+        self.traffic_tree.heading('Connections', text='Connections')
+        self.traffic_tree.heading('Last Activity', text='Last Activity')
         
-        self.browsing_tree.column('Time', width=80)
-        self.browsing_tree.column('Device', width=120)
-        self.browsing_tree.column('IP', width=100)
-        self.browsing_tree.column('Protocol', width=70)
-        self.browsing_tree.column('Method', width=70)
-        self.browsing_tree.column('URL', width=500)
+        self.traffic_tree.column('Device', width=150)
+        self.traffic_tree.column('IP', width=100)
+        self.traffic_tree.column('MAC', width=130)
+        self.traffic_tree.column('Upload', width=100)
+        self.traffic_tree.column('Download', width=100)
+        self.traffic_tree.column('Packets', width=100)
+        self.traffic_tree.column('Connections', width=90)
+        self.traffic_tree.column('Last Activity', width=150)
         
         # Scrollbars
-        vsb = ttk.Scrollbar(tree_container, orient=tk.VERTICAL, command=self.browsing_tree.yview)
-        hsb = ttk.Scrollbar(tree_container, orient=tk.HORIZONTAL, command=self.browsing_tree.xview)
-        self.browsing_tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        vsb = ttk.Scrollbar(tree_container, orient=tk.VERTICAL, command=self.traffic_tree.yview)
+        hsb = ttk.Scrollbar(tree_container, orient=tk.HORIZONTAL, command=self.traffic_tree.xview)
+        self.traffic_tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
         
-        self.browsing_tree.grid(row=0, column=0, sticky='nsew')
+        self.traffic_tree.grid(row=0, column=0, sticky='nsew')
         vsb.grid(row=0, column=1, sticky='ns')
         hsb.grid(row=1, column=0, sticky='ew')
         
         tree_container.grid_rowconfigure(0, weight=1)
         tree_container.grid_columnconfigure(0, weight=1)
         
-        # Right-click menu for browsing history
-        self.browsing_tree.bind("<Button-3>", self.show_browsing_context_menu)
+        # Right-click menu for device traffic
+        self.traffic_tree.bind("<Button-3>", self.show_traffic_context_menu)
     
     def log(self, message, level="INFO"):
         """Add message to log"""
@@ -1203,174 +1207,234 @@ class HybridRouterGUI:
     
     def _on_new_url_captured(self, entry):
         """Callback when new URL is captured (called from monitor thread)"""
-        # Schedule UI update on main thread
-        self.root.after(0, self._add_browsing_entry, entry)
+        # Not used in traffic view, but keep for compatibility
+        pass
     
     def _on_device_update(self, mac, device_info):
         """Callback when device info is updated (called from monitor thread)"""
-        # Update statistics on main thread
-        self.root.after(0, self._update_mitm_stats)
+        # Update traffic display on main thread
+        self.root.after(0, self._update_traffic_display)
     
-    def _add_browsing_entry(self, entry):
-        """Add browsing entry to the tree (main thread only)"""
-        # Add to treeview
-        self.browsing_tree.insert('', 0,  # Insert at top for newest first
-                                  values=(
-                                      entry['time_display'],
-                                      entry['device_name'],
-                                      entry['device_ip'],
-                                      entry['protocol'],
-                                      entry['method'],
-                                      entry['url']
-                                  ))
-        
-        # Update statistics
-        self._update_mitm_stats()
-        
-        # Auto-scroll to top to show latest
-        children = self.browsing_tree.get_children()
-        if children:
-            self.browsing_tree.see(children[0])
-    
-    def _update_mitm_stats(self):
-        """Update MITM statistics display"""
+    def _update_traffic_display(self):
+        """Update the traffic display table (main thread only)"""
         if not self.mitm_monitor:
             return
         
-        history = self.mitm_monitor.get_browsing_history()
         devices = self.mitm_monitor.get_devices()
         
-        # Count HTTP vs HTTPS
-        http_count = sum(1 for h in history if h['protocol'] == 'HTTP')
-        https_count = sum(1 for h in history if h['protocol'] == 'HTTPS')
+        # Clear existing items
+        for item in self.traffic_tree.get_children():
+            self.traffic_tree.delete(item)
         
-        stats_text = f"URLs Captured: {len(history)} | HTTP: {http_count} | HTTPS: {https_count} | Devices: {len(devices)}"
+        # Add devices with traffic info
+        total_upload = 0
+        total_download = 0
+        total_packets = 0
+        
+        for mac, device in devices.items():
+            # Skip router and our own device
+            if device.get('ip') in ['192.168.1.1', '192.168.0.1', self.mitm_monitor.my_ip]:
+                continue
+            
+            traffic = device.get('traffic', {})
+            upload_kb = traffic.get('bytes_sent', 0) / 1024
+            download_kb = traffic.get('bytes_recv', 0) / 1024
+            packets = traffic.get('packets', 0)
+            
+            total_upload += upload_kb
+            total_download += download_kb
+            total_packets += packets
+            
+            # Count connections (HTTP + HTTPS requests)
+            connections = traffic.get('http_requests', 0) + traffic.get('https_requests', 0)
+            
+            # Last activity time
+            last_seen = device.get('last_seen', '')
+            if last_seen:
+                try:
+                    from datetime import datetime
+                    last_time = datetime.fromisoformat(last_seen)
+                    last_activity = last_time.strftime('%H:%M:%S')
+                except:
+                    last_activity = 'Unknown'
+            else:
+                last_activity = 'Unknown'
+            
+            # Device name
+            device_name = device.get('hostname', 'Unknown')
+            if device_name == 'Unknown':
+                device_name = f"Device-{device.get('ip', '').split('.')[-1]}"
+            
+            # Add to tree
+            self.traffic_tree.insert('', tk.END,
+                                    values=(
+                                        device_name,
+                                        device.get('ip', 'Unknown'),
+                                        mac,
+                                        f"{upload_kb:.2f}",
+                                        f"{download_kb:.2f}",
+                                        packets,
+                                        connections,
+                                        last_activity
+                                    ))
+        
+        # Update statistics
+        self._update_mitm_stats(len(devices), total_packets, total_upload, total_download)
+    
+    def _update_mitm_stats(self, device_count=0, total_packets=0, upload_kb=0, download_kb=0):
+        """Update MITM statistics display"""
+        stats_text = f"Devices: {device_count} | Total Packets: {total_packets} | Upload: {upload_kb:.2f} KB | Download: {download_kb:.2f} KB"
         self.mitm_stats_label.config(text=stats_text)
     
     def clear_browsing_history(self):
-        """Clear browsing history display"""
+        """Clear traffic display"""
         # Clear treeview
-        for item in self.browsing_tree.get_children():
-            self.browsing_tree.delete(item)
+        for item in self.traffic_tree.get_children():
+            self.traffic_tree.delete(item)
         
-        # Clear monitor history if running
+        # Reset monitor statistics if running
         if self.mitm_monitor:
-            with self.mitm_monitor.history_lock:
-                self.mitm_monitor.browsing_history.clear()
+            with self.mitm_monitor.device_lock:
+                for mac in self.mitm_monitor.devices:
+                    self.mitm_monitor.traffic_stats[mac] = {
+                        'bytes_sent': 0,
+                        'bytes_recv': 0,
+                        'packets': 0,
+                        'http_requests': 0,
+                        'https_requests': 0,
+                        'dns_queries': 0
+                    }
         
         # Update stats
-        self._update_mitm_stats()
+        self._update_mitm_stats(0, 0, 0, 0)
         
-        self.log("🗑️ Browsing history cleared", "INFO")
+        self.log("🗑️ Traffic statistics cleared", "INFO")
     
     def export_browsing_history(self):
-        """Export browsing history to JSON file"""
+        """Export traffic data to JSON file"""
         if not self.mitm_monitor:
             messagebox.showwarning("No Data", "MITM monitor is not running. No data to export.")
             return
         
-        history = self.mitm_monitor.get_browsing_history()
         devices = self.mitm_monitor.get_devices()
         
-        if not history:
-            messagebox.showinfo("No Data", "No browsing history captured yet.")
+        if not devices:
+            messagebox.showinfo("No Data", "No traffic data captured yet.")
             return
+        
+        # Calculate totals
+        total_upload = sum(d.get('traffic', {}).get('bytes_sent', 0) for d in devices.values())
+        total_download = sum(d.get('traffic', {}).get('bytes_recv', 0) for d in devices.values())
+        total_packets = sum(d.get('traffic', {}).get('packets', 0) for d in devices.values())
         
         # Create export data
         export_data = {
             'export_time': datetime.now().isoformat(),
-            'total_urls': len(history),
             'total_devices': len(devices),
-            'browsing_history': history,
+            'total_upload_bytes': total_upload,
+            'total_download_bytes': total_download,
+            'total_packets': total_packets,
             'devices': devices
         }
         
         # Save to file
-        filename = f"browsing_history_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        filename = f"traffic_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
         
         try:
             with open(filename, 'w') as f:
                 json.dump(export_data, f, indent=2)
             
-            self.log(f"✓ Exported {len(history)} URLs to {filename}", "SUCCESS")
+            self.log(f"✓ Exported traffic data for {len(devices)} devices to {filename}", "SUCCESS")
             messagebox.showinfo("Export Successful", 
-                              f"Browsing history exported to:\n{filename}\n\n"
-                              f"Total URLs: {len(history)}\n"
-                              f"Devices: {len(devices)}")
+                              f"Traffic data exported to:\n{filename}\n\n"
+                              f"Devices: {len(devices)}\n"
+                              f"Total Upload: {total_upload/1024:.2f} KB\n"
+                              f"Total Download: {total_download/1024:.2f} KB\n"
+                              f"Total Packets: {total_packets}")
         except Exception as e:
             self.log(f"✗ Export failed: {e}", "ERROR")
             messagebox.showerror("Export Failed", f"Failed to export:\n{e}")
     
-    def show_browsing_context_menu(self, event):
-        """Show right-click context menu on browsing history"""
+    def show_traffic_context_menu(self, event):
+        """Show right-click context menu on traffic display"""
         # Get selected item
-        item_id = self.browsing_tree.identify_row(event.y)
+        item_id = self.traffic_tree.identify_row(event.y)
         if not item_id:
             return
         
         # Select the item
-        self.browsing_tree.selection_set(item_id)
+        self.traffic_tree.selection_set(item_id)
         
         # Create context menu
         menu = tk.Menu(self.root, tearoff=0, bg='#2b2b2b', fg='white',
                       activebackground='#0066cc', activeforeground='white')
-        menu.add_command(label="📋 Copy URL", command=self.copy_browsing_url)
-        menu.add_command(label="📋 Copy Device IP", command=self.copy_browsing_ip)
+        menu.add_command(label="📋 Copy MAC Address", command=self.copy_traffic_mac)
+        menu.add_command(label="📋 Copy IP Address", command=self.copy_traffic_ip)
         menu.add_separator()
-        menu.add_command(label="🚫 Block This Device", command=self.block_from_browsing)
+        menu.add_command(label="🚫 Block This Device", command=self.block_from_traffic)
+        menu.add_command(label="🔄 Reset Traffic Stats", command=self.reset_device_stats)
         
         # Show menu
         menu.post(event.x_root, event.y_root)
     
-    def copy_browsing_url(self):
-        """Copy URL from browsing history to clipboard"""
-        selection = self.browsing_tree.selection()
+    def copy_traffic_mac(self):
+        """Copy MAC from traffic display to clipboard"""
+        selection = self.traffic_tree.selection()
         if not selection:
             return
         
-        item = self.browsing_tree.item(selection[0])
-        url = item['values'][5]  # URL column
+        item = self.traffic_tree.item(selection[0])
+        mac = item['values'][2]  # MAC column
         
         self.root.clipboard_clear()
-        self.root.clipboard_append(url)
-        self.log(f"📋 Copied URL: {url}", "INFO")
+        self.root.clipboard_append(mac)
+        self.log(f"📋 Copied MAC: {mac}", "INFO")
     
-    def copy_browsing_ip(self):
-        """Copy IP from browsing history to clipboard"""
-        selection = self.browsing_tree.selection()
+    def copy_traffic_ip(self):
+        """Copy IP from traffic display to clipboard"""
+        selection = self.traffic_tree.selection()
         if not selection:
             return
         
-        item = self.browsing_tree.item(selection[0])
-        ip = item['values'][2]  # IP column
+        item = self.traffic_tree.item(selection[0])
+        ip = item['values'][1]  # IP column
         
         self.root.clipboard_clear()
         self.root.clipboard_append(ip)
         self.log(f"📋 Copied IP: {ip}", "INFO")
     
-    def block_from_browsing(self):
-        """Block device selected from browsing history"""
-        selection = self.browsing_tree.selection()
+    def reset_device_stats(self):
+        """Reset traffic statistics for selected device"""
+        selection = self.traffic_tree.selection()
         if not selection:
             return
         
-        item = self.browsing_tree.item(selection[0])
-        device_name = item['values'][1]
-        device_ip = item['values'][2]
+        item = self.traffic_tree.item(selection[0])
+        mac = item['values'][2]
+        device_name = item['values'][0]
         
-        # Find device MAC from IP
-        device_mac = None
         if self.mitm_monitor:
-            devices = self.mitm_monitor.get_devices()
-            for mac, dev in devices.items():
-                if dev.get('ip') == device_ip:
-                    device_mac = mac
-                    break
-        
-        if not device_mac:
-            messagebox.showwarning("Cannot Block", 
-                                 f"Could not find MAC address for device {device_ip}")
+            self.mitm_monitor.traffic_stats[mac] = {
+                'bytes_sent': 0,
+                'bytes_recv': 0,
+                'packets': 0,
+                'http_requests': 0,
+                'https_requests': 0,
+                'dns_queries': 0
+            }
+            self._update_traffic_display()
+            self.log(f"🔄 Reset traffic stats for {device_name}", "INFO")
+    
+    def block_from_traffic(self):
+        """Block device selected from traffic display"""
+        selection = self.traffic_tree.selection()
+        if not selection:
             return
+        
+        item = self.traffic_tree.item(selection[0])
+        device_name = item['values'][0]
+        device_ip = item['values'][1]
+        device_mac = item['values'][2]
         
         # Check if router
         if device_ip in ['192.168.1.1', '192.168.0.1']:
