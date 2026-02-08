@@ -1,22 +1,0 @@
-Note: Unnecessary use of -X or --request, POST is already inferred.
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying 192.168.1.1:80...
-* Connected to 192.168.1.1 (192.168.1.1) port 80
-* using HTTP/1.x
-* Server auth using Basic with user 'user'
-> POST /uajax/firewall_macfilter_json.htm HTTP/1.1
-> Host: 192.168.1.1
-> Authorization: Basic dXNlcjo3ZFdVIWZOZg==
-> User-Agent: curl/8.13.0
-> Accept: */*
-> Content-Type: application/json
-> X-Requested-With: XMLHttpRequest
-> Content-Length: 242
-> 
-} [242 bytes data]
-* upload completely sent off: 242 bytes
-* Empty reply from server
-100   242    0     0  100   242      0   8898 --:--:-- --:--:-- --:--:--  8962
-* shutting down connection #0
-curl: (52) Empty reply from server

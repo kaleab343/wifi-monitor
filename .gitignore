@@ -25,3 +25,11 @@ compile_commands.json
 # Temporary files
 *.tmp
 tmp_*
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+
+# Project specific - runtime files
+mitm_devices.json
