@@ -2,6 +2,10 @@
 """
 Complete Device Discovery System
 Combines: NetBIOS + mDNS + SSDP + Enhanced MAC Database + ARP
+
+MIT License
+Copyright (c) 2026 NetWatch Pro Contributors
+https://opensource.org/licenses/MIT
 """
 
 import subprocess

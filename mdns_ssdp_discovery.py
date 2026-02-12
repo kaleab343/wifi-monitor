@@ -2,6 +2,10 @@
 """
 Advanced Device Discovery using mDNS and SSDP/UPnP
 Discovers real names for iPhones, Android devices, Smart TVs, etc.
+
+MIT License
+Copyright (c) 2026 NetWatch Pro Contributors
+https://opensource.org/licenses/MIT
 """
 
 import socket

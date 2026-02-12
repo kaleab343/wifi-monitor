@@ -2,6 +2,10 @@
 """
 Hybrid Router Manager - C++ for device listing, Python for blocking
 Best of both worlds!
+
+MIT License
+Copyright (c) 2026 NetWatch Pro Contributors
+https://opensource.org/licenses/MIT
 """
 
 import tkinter as tk

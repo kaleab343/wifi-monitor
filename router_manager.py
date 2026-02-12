@@ -2,6 +2,10 @@
 """
 Complete Router Management System - China Telecom TG2212
 Full access to router features via API
+
+MIT License
+Copyright (c) 2026 NetWatch Pro Contributors
+https://opensource.org/licenses/MIT
 """
 
 import requests

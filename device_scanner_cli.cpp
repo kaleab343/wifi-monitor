@@ -1,4 +1,8 @@
 // Simple CLI tool to export device list as JSON for Python
+// MIT License
+// Copyright (c) 2026 NetWatch Pro Contributors
+// https://opensource.org/licenses/MIT
+
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <iphlpapi.h>

@@ -3,6 +3,10 @@
 MITM Passive Network Scanner
 Intercepts all traffic between router and devices to detect EVERY device on the network.
 
+MIT License
+Copyright (c) 2026 NetWatch Pro Contributors
+https://opensource.org/licenses/MIT
+
 This scanner:
 1. Uses ARP spoofing to position as man-in-the-middle
 2. Captures ALL packets flowing through the network
