@@ -851,32 +851,17 @@ class HybridRouterGUI:
     def _scan_devices_arp(self):
         """Scan devices using ARP table"""
         try:
-            if not os.path.exists('device_scanner.exe'):
-                self.log("⚠ Building C++ ARP scanner...", "WARNING")
-                
-                # Try to build it
-                result = subprocess.run(['g++', 'device_scanner_cli.cpp', '-o', 'device_scanner.exe',
-                                       '-liphlpapi', '-lws2_32', '-static'],
-                                      capture_output=True, text=True, timeout=30)
-                
-                if result.returncode != 0:
-                    self.log("✗ Failed to build scanner", "ERROR")
-                    self.log("Error: g++ (MinGW) not found or build error", "ERROR")
-                    self.root.after(0, lambda: messagebox.showwarning("Scanner Not Available",
-                        "C++ device scanner could not be built.\n\n"
-                        "Device scanning requires admin router access OR g++ (MinGW) to build the ARP scanner.\n\n"
-                        "You can still use block/unblock features!"))
-                    return
+            # Use Python ARP scanner (no C++ compiler needed!)
+            self.log("Running Python ARP scanner (no C++ needed)...", "INFO")
             
-            self.log("Running ARP scanner...", "INFO")
-            result = subprocess.run(['device_scanner.exe'], 
-                                  capture_output=True, text=True, timeout=10)
+            result = subprocess.run(['python', 'python_arp_scanner.py'], 
+                                  capture_output=True, text=True, timeout=15)
             
             if result.returncode == 0:
                 devices = json.loads(result.stdout)
                 self.devices = devices
                 self.quick_scan_devices = devices  # Store for MITM merge
-                self.log(f"✓ Found {len(devices)} device(s) via ARP scan", "SUCCESS")
+                self.log(f"✓ Found {len(devices)} device(s) via Python ARP scan", "SUCCESS")
                 self.root.after(0, self._update_device_tree)
                 self.root.after(0, lambda: self.update_status(f"Found {len(devices)} devices"))
             else:
