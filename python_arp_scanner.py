@@ -8,11 +8,27 @@ import json
 import subprocess
 import re
 import platform
+import socket
 from collections import defaultdict
+
+def get_local_ip():
+    """Get local IP address of this PC"""
+    try:
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+        return local_ip
+    except:
+        return None
 
 def get_arp_table():
     """Get ARP table from system"""
     devices = []
+    
+    # Get this PC's IP to identify it
+    local_ip = get_local_ip()
     
     try:
         if platform.system() == "Windows":
@@ -42,8 +58,12 @@ def get_arp_table():
                     # Try to get hostname
                     hostname = get_hostname(ip)
                     
-                    # Determine device type
-                    device_type = guess_device_type(mac, hostname)
+                    # Determine device type - check if this is the local PC
+                    if ip == local_ip:
+                        device_type = 'This PC'
+                        hostname = socket.gethostname() if hostname.startswith('Device-') else hostname
+                    else:
+                        device_type = guess_device_type(mac, hostname)
                     
                     devices.append({
                         'ip': ip,
@@ -71,7 +91,13 @@ def get_arp_table():
                     
                     manufacturer = get_manufacturer_from_mac(mac)
                     hostname = get_hostname(ip)
-                    device_type = guess_device_type(mac, hostname)
+                    
+                    # Determine device type - check if this is the local PC
+                    if ip == local_ip:
+                        device_type = 'This PC'
+                        hostname = socket.gethostname() if hostname.startswith('Device-') else hostname
+                    else:
+                        device_type = guess_device_type(mac, hostname)
                     
                     devices.append({
                         'ip': ip,

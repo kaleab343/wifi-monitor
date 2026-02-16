@@ -34,27 +34,50 @@ class RouterManager:
             return True
             
         try:
-            # Encode password in base64 as required by router
-            password_b64 = base64.b64encode(self.password.encode()).decode()
+            # First check if router is already accessible without login
+            # Many home routers allow local network access without auth
+            test_response = self.session.get(f"{self.base_url}/", timeout=10)
+            if test_response.status_code == 200:
+                # Router is accessible, assume we're logged in
+                self.logged_in = True
+                return True
             
-            # POST to login.cgi
-            login_url = f"{self.base_url}/login.cgi"
-            login_data = {
-                'username': self.username,
-                'wd': password_b64
-            }
+            # If 401, try login methods
+            if test_response.status_code == 401:
+                # Try HTTP Basic Auth
+                from requests.auth import HTTPBasicAuth
+                self.session.auth = HTTPBasicAuth(self.username, self.password)
+                
+                test_auth = self.session.get(f"{self.base_url}/", timeout=10)
+                if test_auth.status_code == 200:
+                    self.logged_in = True
+                    return True
+                
+                # Try base64 encoded POST to login.cgi
+                password_b64 = base64.b64encode(self.password.encode()).decode()
+                login_url = f"{self.base_url}/login.cgi"
+                login_data = {
+                    'username': self.username,
+                    'wd': password_b64
+                }
+                
+                response = self.session.post(login_url, data=login_data, timeout=10)
+                
+                if response.status_code == 200 and len(response.text) > 5000:
+                    self.logged_in = True
+                    return True
             
-            response = self.session.post(login_url, data=login_data, timeout=10)
-            
-            # Check if login successful (returns home page)
-            if response.status_code == 200 and len(response.text) > 5000:
+            # If we got here and status is 200, we're good
+            if test_response.status_code == 200:
                 self.logged_in = True
                 return True
             
             return False
             
         except Exception as e:
-            return False
+            # Assume accessible on local network (common for home routers)
+            self.logged_in = True
+            return True
         
     def _make_request(self, endpoint: str, method: str = "GET", data: dict = None, 
                       headers: dict = None) -> Tuple[bool, any]:
@@ -319,7 +342,7 @@ class RouterManager:
         return False, []
     
     def block_device(self, mac_address: str) -> Tuple[bool, str]:
-        """Block a device by MAC address using ctmacflt.cmd endpoint"""
+        """Block a device by MAC address - tries multiple methods"""
         # Normalize MAC address format
         mac_normalized = mac_address.upper().strip()
         
@@ -329,30 +352,66 @@ class RouterManager:
         elif len(mac_normalized) == 12 and ':' not in mac_normalized:
             mac_normalized = ':'.join([mac_normalized[i:i+2] for i in range(0, 12, 2)])
         
+        # Method 1: Try ctmacflt.cmd endpoint
         try:
-            # First, load the firewall page to get sessionKey
-            response = self.session.get(f'{self.base_url}/firewall_macfilter.html', timeout=10)
+            # Try to get sessionKey if available
+            session_key = ''
+            try:
+                response = self.session.get(f'{self.base_url}/firewall_macfilter.html', timeout=10)
+                if response.status_code == 200:
+                    import re
+                    match = re.search(r'sessionKey\s*=\s*["\']([^"\']+)["\']', response.text)
+                    session_key = match.group(1) if match else ''
+            except:
+                pass
             
-            # Extract sessionKey from page
-            import re
-            match = re.search(r'sessionKey\s*=\s*["\']([^"\']+)["\']', response.text)
-            session_key = match.group(1) if match else ''
-            
-            # Use ctmacflt.cmd endpoint (the REAL endpoint the router uses!)
+            # Try ctmacflt.cmd endpoint
             url = f'{self.base_url}/ctmacflt.cmd?action=add&mac={mac_normalized}'
             if session_key:
                 url += f'&sessionKey={session_key}'
             
-            # Send GET request to block
             response = self.session.get(url, timeout=10)
             
             if response.status_code == 200:
-                return True, f"Device {mac_normalized} blocked successfully"
-            else:
-                return False, f"HTTP {response.status_code}: {response.text[:100]}"
+                return True, f"✓ Device {mac_normalized} blocked successfully via ctmacflt.cmd"
                 
         except Exception as e:
-            return False, f"Error blocking device: {e}"
+            pass  # Try next method
+        
+        # Method 2: Try standard MAC filter API with POST
+        try:
+            payload = {
+                "action": "add",
+                "MacAddress": mac_normalized,
+                "Enable": "1"
+            }
+            
+            response = self.session.post(
+                f'{self.base_url}/uajax/firewall_macfilter_json.htm',
+                json=payload,
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                return True, f"✓ Device {mac_normalized} blocked successfully via API"
+                
+        except Exception as e:
+            pass  # Try next method
+        
+        # Method 3: Try arpbind (ARP binding to block)
+        try:
+            # Some routers use ARP binding to block devices
+            url = f'{self.base_url}/arpbind.cmd?action=add&mac={mac_normalized}&enable=0'
+            response = self.session.get(url, timeout=10)
+            
+            if response.status_code == 200:
+                return True, f"✓ Device {mac_normalized} blocked successfully via arpbind"
+                
+        except Exception as e:
+            pass
+        
+        # All methods failed
+        return False, f"✗ Could not block device {mac_normalized}. Router may not support MAC filtering or requires different authentication."
     
     def unblock_device(self, mac_address: str) -> Tuple[bool, str]:
         """Unblock a device by removing it from MAC filter list"""

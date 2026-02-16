@@ -299,15 +299,7 @@ class HybridRouterGUI:
         self._create_modern_button(primary_btn_frame, "🕵️ MITM Scan", self.mitm_scan,
                                    self.colors['accent_orange'], side=tk.LEFT, padx=(0, 8))
         
-        # Device actions
-        device_btn_frame = tk.Frame(btn_container, bg=self.colors['bg_card'])
-        device_btn_frame.pack(fill=tk.X)
-        
-        self._create_modern_button(device_btn_frame, "🚫 Block Device", self.block_selected,
-                                   self.colors['accent_red'], side=tk.LEFT, padx=(0, 8))
-        
-        self._create_modern_button(device_btn_frame, "✅ Unblock Device", self.unblock_selected,
-                                   self.colors['accent_green'], side=tk.LEFT, padx=(0, 8))
+        # Note: Block/Unblock options are available in right-click context menu
         
         # Manual MAC entry section with modern card
         manual_card = tk.Frame(content_frame, bg=self.colors['bg_card'], relief=tk.FLAT)
@@ -887,6 +879,16 @@ class HybridRouterGUI:
     
     def _update_device_tree(self):
         """Update device treeview (main thread only)"""
+        # Get local IP to identify this PC
+        try:
+            import socket
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            local_ip = s.getsockname()[0]
+            s.close()
+        except:
+            local_ip = None
+        
         # Load known devices database
         known_devices = self._load_known_devices()
         
@@ -936,8 +938,11 @@ class HybridRouterGUI:
                 else:
                     display_name = hostname
                 
+                # Check if this is the local PC first
+                if local_ip and device.get('ip') == local_ip:
+                    device_type = 'This PC'
                 # Use custom type if available, otherwise use detected type
-                if custom_type:
+                elif custom_type:
                     device_type = custom_type
                     self.log(f"📌 Using saved type for {mac}: {custom_type}", "INFO")
                 else:
@@ -1121,6 +1126,15 @@ class HybridRouterGUI:
         # Select the item
         self.devices_tree.selection_set(item_id)
         
+        # Get device info to determine if blocked
+        values = self.devices_tree.item(item_id, 'values')
+        if not values or len(values) < 6:
+            return
+        
+        mac = values[1]  # MAC address
+        status = values[5]  # Status column
+        is_blocked = "Blocked" in status or "🚫" in status
+        
         # Create modern context menu
         menu = tk.Menu(self.root, tearoff=0, 
                       bg=self.colors['bg_card'], 
@@ -1130,6 +1144,14 @@ class HybridRouterGUI:
                       borderwidth=1,
                       relief=tk.FLAT,
                       font=('Segoe UI', 9))
+        
+        # Add Block/Unblock option at the top
+        if is_blocked:
+            menu.add_command(label="✅  Unblock Device", command=self.unblock_selected)
+        else:
+            menu.add_command(label="🚫  Block Device", command=self.block_selected)
+        
+        menu.add_separator()
         menu.add_command(label="✏️  Rename Device", command=self.rename_device)
         menu.add_command(label="🏷️  Set Device Type", command=self.set_device_type)
         menu.add_separator()
