@@ -14,7 +14,11 @@ import threading
 import subprocess
 import json
 import os
-from router_manager import RouterManager
+import sys
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from utils.router_manager import RouterManager
 from datetime import datetime
 
 # Try to import PIL for better graphics (optional)
@@ -846,7 +850,8 @@ class HybridRouterGUI:
             # Use Python ARP scanner (no C++ compiler needed!)
             self.log("Running Python ARP scanner (no C++ needed)...", "INFO")
             
-            result = subprocess.run(['python', 'python_arp_scanner.py'], 
+            scanner_path = os.path.join(os.path.dirname(__file__), '..', 'scanners', 'python_arp_scanner.py')
+            result = subprocess.run(['python', scanner_path], 
                                   capture_output=True, text=True, timeout=15)
             
             if result.returncode == 0:
@@ -869,8 +874,9 @@ class HybridRouterGUI:
     def _load_known_devices(self):
         """Load known devices from JSON database"""
         try:
-            if os.path.exists('known_devices.json'):
-                with open('known_devices.json', 'r') as f:
+            known_devices_file = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'known_devices.json')
+            if os.path.exists(known_devices_file):
+                with open(known_devices_file, 'r') as f:
                     return json.load(f)
             return {}
         except Exception as e:

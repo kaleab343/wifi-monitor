@@ -1,261 +1,176 @@
-# 🔍 NetWatch Pro - Complete Network Visibility & Management
+# NetWatch Pro - WiFi Network Monitor
 
-A powerful professional-grade network monitoring and management tool that combines device scanning, deep traffic analysis, and router control capabilities.
+A comprehensive WiFi network monitoring and management tool with device discovery, traffic analysis, and blocking capabilities.
 
-![Version](https://img.shields.io/badge/version-2.0-blue)
-![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
-![License](https://img.shields.io/badge/license-MIT-green)
-![Professional](https://img.shields.io/badge/grade-Professional-success)
+## 🚀 Quick Start
 
-## 🚀 Features
+### Option 1: Desktop Shortcut (Recommended)
+Double-click **"NetWatch Pro - WiFi Monitor"** on your desktop.
 
-### 📱 Device Management
-- **Quick Scan** - Fast ARP-based device discovery
-- **Complete Discovery** - Advanced scanning using NetBIOS, mDNS, SSDP, and MAC database
-- **Custom Device Naming** - Rename and categorize your devices
-- **Block/Unblock Devices** - Control network access via router API
-
-### 🕵️ MITM Network Analysis
-- **100% Traffic Capture** - No packet filtering, captures ALL network traffic
-- **Promiscuous Mode** - Complete network visibility
-- **Protocol Detection** - Identifies 20+ protocols (HTTP, HTTPS, DNS, SSH, FTP, RDP, mDNS, SSDP, ARP, etc.)
-- **Silent Device Detection** - Identifies connected but inactive devices
-- **Real-time Traffic Monitoring** - Live analysis of network activity
-
-### 📊 Dynamic Interface
-- **Smart Column Headers** - Changes based on scan mode (Traffic Type for MITM, Manufacturer for normal scans)
-- **Merged Results** - Combines Quick Scan and MITM data for comprehensive device view
-- **Traffic Statistics** - Upload/download bytes, packet counts, and protocol breakdowns
-
-## 📋 Requirements
-
-### System Requirements
-- **OS:** Windows 10/11
-- **Python:** 3.7 or higher
-- **Administrator Privileges:** Required for MITM features
-
-### Python Dependencies
+### Option 2: Command Line
 ```bash
-pip install -r requirements.txt
+python run.py
 ```
-
-**Required packages:**
-- `scapy` - Packet capture and network analysis
-- `requests` - Router API communication
-- `tkinter` - GUI (usually included with Python)
-
-### Optional: C++ Compiler (for Quick Scan)
-The Quick Scan feature uses a C++ ARP scanner for better performance. If `device_scanner.exe` is not present, the application will attempt to compile it automatically using MinGW g++.
-
-**To manually compile (Windows with MinGW):**
-```bash
-g++ device_scanner_cli.cpp -o device_scanner.exe -liphlpapi -lws2_32 -static
-```
-
-**Note:** If you don't have g++/MinGW installed, the Quick Scan will attempt to use the router API (which requires admin credentials) or you can use the Complete Discovery scan instead.
-
-## 🛠️ Installation
-
-### Option 1: Use Pre-built Executable (Recommended)
-
-1. Download `NetWatchPro.exe` from the releases page
-2. Run as Administrator (right-click → "Run as administrator")
-3. Start scanning and managing your network!
-
-### Option 2: Run from Source
-
-1. Clone the repository:
-```bash
-git clone https://github.com/kaleab343/wifi-monitor.git
-cd wifi-monitor
-```
-
-2. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-3. Run the application:
-```bash
-# For normal features
-python hybrid_router_gui.py
-
-# For MITM features (requires admin)
-run_gui_as_admin_mitm.bat
-```
-
-## 📖 Usage Guide
-
-### Basic Workflow
-
-1. **Start the Application**
-   - Run `WiFiRouterManager.exe` or `python hybrid_router_gui.py`
-
-2. **Scan Your Network**
-   - Click **"🔄 Quick Scan"** to find connected devices
-   - Click **"🔍 Complete Discovery"** for detailed device information
-
-3. **MITM Traffic Analysis** (Requires Admin)
-   - First run Quick Scan to find devices
-   - Then click **"🕵️ MITM Scan"** to analyze traffic
-   - Results show protocol usage and silent devices
-
-4. **Manage Devices**
-   - Right-click any device to rename or set device type
-   - Select a device and click **"🚫 Block"** to disconnect it
-   - Click **"✅ Unblock"** to restore access
-
-### Scan Modes Explained
-
-#### 🔄 Quick Scan
-- **Method:** ARP table scanning
-- **Speed:** Fast (seconds)
-- **Shows:** IP, MAC, basic device info
-- **Column Header:** "Manufacturer"
-
-#### 🔍 Complete Discovery
-- **Methods:** NetBIOS, mDNS, SSDP, MAC database
-- **Speed:** Moderate (30-60 seconds)
-- **Shows:** Hostnames, device types, OS detection
-- **Column Header:** "Manufacturer"
-
-#### 🕵️ MITM Scan
-- **Method:** ARP spoofing + packet capture
-- **Speed:** 30 seconds (configurable)
-- **Shows:** Traffic types, protocols, silent devices
-- **Column Header:** "Traffic Type"
-- **Requirements:** Administrator privileges
-
-## 🔒 Security & Privacy
-
-### What This Tool Does
-- Scans your local network for connected devices
-- Analyzes network traffic when MITM mode is enabled
-- Manages device access through your router
-
-### Important Notes
-- ⚠️ **MITM features require Administrator/root privileges**
-- ⚠️ **Only use on networks you own or have permission to monitor**
-- ⚠️ **Traffic analysis is performed locally - no data is sent externally**
-- ✅ Network state is restored after MITM scan completes
 
 ## 📁 Project Structure
 
 ```
-netwatch-pro/
-├── hybrid_router_gui.py          # Main GUI application (NetWatch Pro)
-├── mitm_passive_scanner.py       # MITM traffic capture engine
-├── router_manager.py             # Router API integration
-├── complete_device_discovery.py  # Advanced device discovery
-├── mdns_ssdp_discovery.py        # Network protocol discovery
-├── device_scanner_cli.cpp        # C++ ARP scanner (Quick Scan)
-├── known_devices.json            # Device database
-├── requirements.txt              # Python dependencies
-├── app_icon.ico                  # Application icon
-├── run_gui_as_admin_mitm.bat    # Admin launcher (Windows)
-├── note/                         # Development notes
-└── README.md                     # This file
+wifi-monitor/
+├── run.py                      # Main launcher script
+├── requirements.txt            # Python dependencies
+├── LICENSE                     # License file
+├── .gitignore                 # Git ignore rules
+│
+├── src/                        # Source code
+│   ├── gui/                   # GUI components
+│   │   └── hybrid_router_gui.py
+│   ├── scanners/              # Network scanning modules
+│   │   ├── python_arp_scanner.py
+│   │   ├── complete_device_discovery.py
+│   │   ├── mdns_ssdp_discovery.py
+│   │   └── mitm_passive_scanner.py
+│   └── utils/                 # Utility modules
+│       └── router_manager.py
+│
+├── scripts/                    # Launcher scripts
+│   ├── launch_wifi_monitor.bat
+│   └── launch_wifi_monitor_admin.bat
+│
+├── docs/                       # Documentation
+│   ├── README.md              # Main documentation
+│   ├── BLOCKING_STATUS.md     # Blocking guide
+│   ├── WHY_BLOCKING_DOESNT_WORK.md
+│   ├── FIXED_NO_CPP_NEEDED.md
+│   └── README_DESKTOP_SHORTCUTS.md
+│
+├── data/                       # Data files
+│   ├── known_devices.json     # Device database
+│   └── mitm_devices.json      # MITM scan results
+│
+└── assets/                     # Resources
+    ├── app_icon.ico           # Application icon
+    └── NetWatchPro.manifest   # Windows manifest
 ```
 
-## 🎯 Key Features Breakdown
+## ✨ Features
 
-### Traffic Protocol Detection
-The MITM scanner detects and identifies:
+### 🔍 Device Discovery
+- **Quick Scan** - Fast ARP-based device discovery
+- **Complete Discovery** - Multi-protocol detection (NetBIOS, mDNS, SSDP)
+- **MITM Passive Scan** - Deep packet inspection to detect all devices
 
-**Application Layer:**
-- HTTP (Web traffic)
-- HTTPS (Secure web traffic)
-- DNS (Domain lookups)
-- DHCP (IP assignment)
+### 📊 Network Monitoring
+- Real-time traffic analysis
+- Upload/download statistics per device
+- Device type identification
+- Manufacturer detection from MAC address
 
-**Transport Layer:**
-- TCP (Connection-oriented)
-- UDP (Connectionless)
+### 🛡️ Device Management
+- Block/Unblock devices (right-click menu)
+- Rename devices
+- Set custom device types
+- Copy MAC/IP addresses
 
-**Network Discovery:**
-- mDNS (Apple devices)
-- SSDP (UPnP discovery)
-- ARP (Address resolution)
+### 🖥️ User Interface
+- Modern, clean GUI
+- Dark theme
+- Real-time activity logs
+- Device status indicators
+- "This PC" identification
 
-**Remote Access:**
-- SSH (Secure shell)
-- RDP (Remote desktop)
-- FTP (File transfer)
-- VNC (Remote desktop)
+## 🔧 Installation
 
-### Dynamic UI Behavior
+### Requirements
+- Python 3.7+
+- Windows/Linux/Mac
+- Network access
 
-The application adapts based on the scan mode:
+### Install Dependencies
+```bash
+pip install -r requirements.txt
+```
 
-| Scan Type | Column Header | Data Shown |
-|-----------|--------------|------------|
-| Quick Scan | Manufacturer | Apple, Samsung, TP-Link, etc. |
-| Complete Discovery | Manufacturer | Device manufacturer from MAC |
-| MITM Scan | Traffic Type | HTTPS, DNS, ARP, SSH, etc. |
+### Dependencies
+- `requests` - HTTP communication with router
+- `scapy` - Network packet manipulation (MITM features)
+- `pillow` - Image processing (optional)
+- `tkinter` - GUI framework (included with Python)
+
+## 📖 Usage
+
+### Basic Scanning
+1. Launch application
+2. Click **"🔄 Quick Scan"**
+3. View discovered devices
+
+### Advanced Features
+1. **Complete Discovery**: Multi-protocol deep scan
+2. **MITM Scan**: Detect hidden/silent devices (requires admin)
+3. **Traffic Monitor**: Real-time traffic analysis (requires admin)
+
+### Device Actions (Right-Click Menu)
+- **Block Device** - Disconnect device from network
+- **Unblock Device** - Allow device to reconnect
+- **Rename Device** - Set custom friendly name
+- **Set Device Type** - Categorize device
+- **Copy MAC/IP** - Copy to clipboard
+
+## 🔐 Admin Mode
+
+For MITM features (traffic monitoring, deep scanning):
+1. Right-click **"NetWatch Pro - WiFi Monitor"** shortcut
+2. Select **"Run as Administrator"**
+3. Or use the desktop shortcut (already configured for admin)
+
+## ⚙️ Configuration
+
+### Router Settings
+Edit `src/utils/router_manager.py`:
+```python
+self.router_ip = "192.168.1.1"    # Your router IP
+self.username = "admin"            # Router username
+self.password = "password"         # Router password
+```
 
 ## 🐛 Troubleshooting
 
-### MITM Scan Not Working
-- **Solution:** Run as Administrator (required for packet capture)
-- **Check:** Ensure Npcap/WinPcap is installed (comes with Scapy)
+### Device Scanning Issues
+- Ensure you're connected to WiFi
+- Try "Complete Discovery" for better results
+- Use "MITM Scan" to detect silent devices
 
-### No Devices Found
-- **Check:** You're connected to the network
-- **Check:** Firewall isn't blocking the application
-- **Try:** Run as Administrator
+### Blocking Not Working
+- Check router compatibility (see `docs/WHY_BLOCKING_DOESNT_WORK.md`)
+- Verify router credentials
+- Some routers don't support web-based MAC filtering
 
-### Router API Features Not Working
-- **Check:** Router credentials in `router_manager.py`
-- **Check:** Router IP address is correct (default: 192.168.1.1)
-- **Note:** Some routers require specific API access
+### Application Won't Start
+- Check Python version: `python --version`
+- Install dependencies: `pip install -r requirements.txt`
+- Check error logs in console
 
-## 🔧 Configuration
+## 📚 Documentation
 
-### Router Settings
-Edit `router_manager.py` to configure:
-```python
-ROUTER_IP = "192.168.1.1"      # Your router's IP
-ROUTER_USER = "admin"           # Router username
-ROUTER_PASS = "password"        # Router password
-```
-
-### MITM Scan Duration
-Edit `hybrid_router_gui.py`:
-```python
-scanner.start_passive_scan(duration=30)  # Change 30 to desired seconds
-```
+- **Main Docs**: `docs/README.md`
+- **Blocking Guide**: `docs/BLOCKING_STATUS.md`
+- **Troubleshooting**: `docs/WHY_BLOCKING_DOESNT_WORK.md`
+- **Desktop Setup**: `docs/README_DESKTOP_SHORTCUTS.md`
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+This is a personal project, but suggestions are welcome!
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+## 📜 License
 
-## 📄 License
+See LICENSE file for details.
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+## 🔗 Repository
 
-## ⚠️ Disclaimer
-
-This tool is for educational and network administration purposes only. Use responsibly and only on networks you own or have explicit permission to monitor. The authors are not responsible for misuse or damage caused by this software.
-
-## 📞 Support
-
-For issues, questions, or suggestions:
-- Open an issue on GitHub
-- Check existing issues for solutions
-- Review the documentation above
-
-## 🙏 Acknowledgments
-
-- **Scapy** - Powerful packet manipulation library
-- **Python Community** - For excellent networking libraries
-- **Contributors** - Thank you for your contributions!
+https://github.com/kaleab343/wifi-monitor.git
 
 ---
 
-**Made with ❤️ for network administrators and security enthusiasts**
+**Version**: 2.0  
+**Last Updated**: February 16, 2026  
+**Python**: 3.7+  
+**Platform**: Windows, Linux, Mac

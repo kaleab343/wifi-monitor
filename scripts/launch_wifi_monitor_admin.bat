@@ -17,11 +17,11 @@ if %errorLevel% == 0 (
     echo Running with Administrator privileges...
     echo.
     
-    REM Change to the wifi-monitor directory
-    cd /d "%~dp0"
+    REM Change to the wifi-monitor root directory
+    cd /d "%~dp0.."
     
-    REM Launch the Python GUI
-    python hybrid_router_gui.py
+    REM Launch the Python GUI using the new launcher
+    python run.py
     
     REM Keep window open if there's an error
     if errorlevel 1 (
