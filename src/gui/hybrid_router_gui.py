@@ -599,7 +599,8 @@ class HybridRouterGUI:
             self.log("Running comprehensive device discovery...", "INFO")
             self.log("Methods: NetBIOS, mDNS, SSDP, Enhanced MAC Database", "INFO")
             
-            result = subprocess.run(['python', 'complete_device_discovery.py'], 
+            discovery_path = os.path.join(os.path.dirname(__file__), '..', 'scanners', 'complete_device_discovery.py')
+            result = subprocess.run([sys.executable, discovery_path], 
                                   capture_output=True, text=True, timeout=60)
             
             self.log(f"Discovery completed with return code: {result.returncode}", "INFO")
@@ -644,6 +645,8 @@ class HybridRouterGUI:
             self.log(f"✗ Failed to parse discovery output: {e}", "ERROR")
         except Exception as e:
             self.log(f"✗ Discovery error: {e}", "ERROR")
+            import traceback
+            self.log(traceback.format_exc(), "ERROR")
     
     def mitm_scan(self):
         """Run MITM passive network scan to detect ALL devices"""
@@ -869,25 +872,39 @@ class HybridRouterGUI:
             self.log("Running Python ARP scanner (no C++ needed)...", "INFO")
             
             scanner_path = os.path.join(os.path.dirname(__file__), '..', 'scanners', 'python_arp_scanner.py')
-            result = subprocess.run(['python', scanner_path], 
-                                  capture_output=True, text=True, timeout=15)
+            result = subprocess.run([sys.executable, scanner_path], 
+                                  capture_output=True, text=True, timeout=30)
             
             if result.returncode == 0:
-                devices = json.loads(result.stdout)
-                self.devices = devices
-                self.quick_scan_devices = devices  # Store for MITM merge
-                self.log(f"✓ Found {len(devices)} device(s) via Python ARP scan", "SUCCESS")
-                self.root.after(0, self._update_device_tree)
-                self.root.after(0, lambda: self.update_status(f"Found {len(devices)} devices"))
+                # Parse output - skip stderr messages, only parse JSON
+                output = result.stdout
+                if output.strip():
+                    devices = json.loads(output)
+                    self.devices = devices
+                    self.quick_scan_devices = devices  # Store for MITM merge
+                    self.log(f"✓ Found {len(devices)} device(s) via Python ARP scan", "SUCCESS")
+                    
+                    # Log each device found
+                    for dev in devices:
+                        self.log(f"  📍 {dev.get('ip')} - {dev.get('hostname')} ({dev.get('manufacturer')})", "INFO")
+                    
+                    self.root.after(0, self._update_device_tree)
+                    self.root.after(0, lambda: self.update_status(f"Found {len(devices)} devices"))
+                else:
+                    self.log(f"✗ Scanner returned empty output", "ERROR")
+                    self.log(f"stderr: {result.stderr}", "ERROR")
             else:
-                self.log(f"✗ Scanner error: {result.stderr}", "ERROR")
+                self.log(f"✗ Scanner error (code {result.returncode}): {result.stderr}", "ERROR")
             
         except subprocess.TimeoutExpired:
-            self.log("✗ Scanner timeout", "ERROR")
+            self.log("✗ Scanner timeout (>30 seconds)", "ERROR")
         except json.JSONDecodeError as e:
-            self.log(f"✗ Failed to parse scanner output", "ERROR")
+            self.log(f"✗ Failed to parse scanner output: {e}", "ERROR")
+            self.log(f"Output was: {result.stdout[:200]}", "ERROR")
         except Exception as e:
             self.log(f"✗ ARP scan failed: {e}", "ERROR")
+            import traceback
+            self.log(traceback.format_exc(), "ERROR")
     
     def _load_known_devices(self):
         """Load known devices from JSON database"""
@@ -1178,9 +1195,29 @@ class HybridRouterGUI:
         menu.add_separator()
         menu.add_command(label="✏️  Rename Device", command=self.rename_device)
         menu.add_command(label="🏷️  Set Device Type", command=self.set_device_type)
+        
         menu.add_separator()
-        menu.add_command(label="📋  Copy MAC Address", command=self.copy_mac)
-        menu.add_command(label="📋  Copy IP Address", command=self.copy_ip)
+        
+        # Copy submenu with all data fields
+        copy_menu = tk.Menu(menu, tearoff=0,
+                           bg=self.colors['bg_card'], 
+                           fg=self.colors['text_primary'],
+                           activebackground=self.colors['accent_blue'], 
+                           activeforeground=self.colors['text_primary'],
+                           borderwidth=1,
+                           relief=tk.FLAT,
+                           font=('Segoe UI', 9))
+        
+        copy_menu.add_command(label="📋  IP Address", command=self.copy_ip)
+        copy_menu.add_command(label="📋  MAC Address", command=self.copy_mac)
+        copy_menu.add_command(label="📋  Hostname", command=self.copy_hostname)
+        copy_menu.add_command(label="📋  Manufacturer", command=self.copy_manufacturer)
+        copy_menu.add_command(label="📋  Device Type", command=self.copy_device_type)
+        copy_menu.add_command(label="📋  OS", command=self.copy_os)
+        copy_menu.add_separator()
+        copy_menu.add_command(label="📋  All Device Info", command=self.copy_all_info)
+        
+        menu.add_cascade(label="📋  Copy...", menu=copy_menu)
         
         # Show menu
         menu.post(event.x_root, event.y_root)
@@ -1446,6 +1483,84 @@ class HybridRouterGUI:
         self.root.clipboard_clear()
         self.root.clipboard_append(ip)
         self.log(f"📋 Copied IP address: {ip}", "INFO")
+    
+    def copy_hostname(self):
+        """Copy hostname to clipboard"""
+        selection = self.devices_tree.selection()
+        if not selection:
+            return
+        
+        item = self.devices_tree.item(selection[0])
+        hostname = item['text'].replace('🌐 ', '').replace('📱 ', '').strip()
+        
+        self.root.clipboard_clear()
+        self.root.clipboard_append(hostname)
+        self.log(f"📋 Copied hostname: {hostname}", "INFO")
+    
+    def copy_manufacturer(self):
+        """Copy manufacturer to clipboard"""
+        selection = self.devices_tree.selection()
+        if not selection:
+            return
+        
+        item = self.devices_tree.item(selection[0])
+        manufacturer = item['values'][2]
+        
+        self.root.clipboard_clear()
+        self.root.clipboard_append(manufacturer)
+        self.log(f"📋 Copied manufacturer: {manufacturer}", "INFO")
+    
+    def copy_device_type(self):
+        """Copy device type to clipboard"""
+        selection = self.devices_tree.selection()
+        if not selection:
+            return
+        
+        item = self.devices_tree.item(selection[0])
+        device_type = item['values'][3]
+        
+        self.root.clipboard_clear()
+        self.root.clipboard_append(device_type)
+        self.log(f"📋 Copied device type: {device_type}", "INFO")
+    
+    def copy_os(self):
+        """Copy OS to clipboard"""
+        selection = self.devices_tree.selection()
+        if not selection:
+            return
+        
+        item = self.devices_tree.item(selection[0])
+        os_info = item['values'][4]
+        
+        self.root.clipboard_clear()
+        self.root.clipboard_append(os_info)
+        self.log(f"📋 Copied OS: {os_info}", "INFO")
+    
+    def copy_all_info(self):
+        """Copy all device information to clipboard"""
+        selection = self.devices_tree.selection()
+        if not selection:
+            return
+        
+        item = self.devices_tree.item(selection[0])
+        hostname = item['text'].replace('🌐 ', '').replace('📱 ', '').strip()
+        values = item['values']
+        
+        # Format all info
+        info = f"""Device Information:
+─────────────────────────────────────
+Hostname:      {hostname}
+IP Address:    {values[0]}
+MAC Address:   {values[1]}
+Manufacturer:  {values[2]}
+Device Type:   {values[3]}
+OS:            {values[4]}
+Status:        {values[5]}
+─────────────────────────────────────"""
+        
+        self.root.clipboard_clear()
+        self.root.clipboard_append(info)
+        self.log(f"📋 Copied all device info for: {hostname}", "INFO")
     
     def _save_device_name(self, mac, name):
         """Save device name to known_devices.json"""
