@@ -15,6 +15,7 @@ import subprocess
 import json
 import os
 import sys
+import platform
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -82,6 +83,19 @@ class HybridRouterGUI:
         
         # Auto-scan on startup
         self.root.after(1000, self.scan_devices)
+    
+    def _check_admin_privileges(self):
+        """Check if running with administrator/root privileges (cross-platform)"""
+        try:
+            if platform.system() == 'Windows':
+                import ctypes
+                return ctypes.windll.shell32.IsUserAnAdmin()
+            else:
+                # Linux/Mac: Check if running as root
+                return os.geteuid() == 0
+        except Exception as e:
+            print(f"Warning: Could not check admin privileges: {e}")
+            return False
     
     def _configure_styles(self):
         """Configure custom ttk styles for modern look"""
@@ -646,17 +660,21 @@ class HybridRouterGUI:
             # Set scan mode to MITM
             self.last_scan_mode = "mitm"
             
-            # Check if running as admin on Windows
-            if os.name == 'nt':
-                import ctypes
-                is_admin = ctypes.windll.shell32.IsUserAnAdmin()
-                if not is_admin:
-                    self.log("✗ ERROR: Not running as Administrator!", "ERROR")
+            # Check if running as admin (cross-platform)
+            is_admin = self._check_admin_privileges()
+            if not is_admin:
+                self.log("✗ ERROR: Not running with administrator/root privileges!", "ERROR")
+                if platform.system() == 'Windows':
                     self.log("💡 Right-click run_gui_as_admin_mitm.bat and select 'Run as Administrator'", "INFO")
                     self.root.after(0, lambda: messagebox.showerror("Admin Required",
                         "MITM scan requires Administrator privileges!\n\n"
                         "Please run: run_gui_as_admin_mitm.bat"))
-                    return
+                else:
+                    self.log("💡 Run the application with sudo: sudo python3 run.py", "INFO")
+                    self.root.after(0, lambda: messagebox.showerror("Root Required",
+                        "MITM scan requires root privileges!\n\n"
+                        "Please run: sudo python3 run.py"))
+                return
             
             # Import MITM scanner
             try:
@@ -1487,17 +1505,21 @@ class HybridRouterGUI:
         self.log("⚠️ This requires Administrator privileges!", "WARNING")
         self.log("📡 Will intercept HTTP/HTTPS traffic and show browsing activity", "INFO")
         
-        # Check if running as admin on Windows
-        if os.name == 'nt':
-            import ctypes
-            is_admin = ctypes.windll.shell32.IsUserAnAdmin()
-            if not is_admin:
-                self.log("✗ ERROR: Not running as Administrator!", "ERROR")
+        # Check if running as admin (cross-platform)
+        is_admin = self._check_admin_privileges()
+        if not is_admin:
+            self.log("✗ ERROR: Not running with administrator/root privileges!", "ERROR")
+            if platform.system() == 'Windows':
                 self.log("💡 Right-click run_gui_as_admin_mitm.bat and select 'Run as Administrator'", "INFO")
                 messagebox.showerror("Admin Required",
                     "MITM Browser Monitor requires Administrator privileges!\n\n"
                     "Please run: run_gui_as_admin_mitm.bat")
-                return
+            else:
+                self.log("💡 Run the application with sudo: sudo python3 run.py", "INFO")
+                messagebox.showerror("Root Required",
+                    "MITM Browser Monitor requires root privileges!\n\n"
+                    "Please run: sudo python3 run.py")
+            return
         
         # Update UI
         self.mitm_start_btn.config(state=tk.DISABLED)

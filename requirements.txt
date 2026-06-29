@@ -1,1 +1,12 @@
 requests>=2.25.0
+scapy>=2.4.5
+pillow>=8.0.0
+
+# Note for Linux users:
+# Install system dependencies first:
+# - Debian/Ubuntu: sudo apt-get install python3-tk libpcap-dev
+# - Fedora/RHEL: sudo dnf install python3-tkinter libpcap-devel
+# - Arch Linux: sudo pacman -S tk libpcap
+#
+# tkinter is included with Python on Windows/macOS
+# For Linux, install the python3-tk package from your distribution

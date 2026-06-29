@@ -1,0 +1,14 @@
+[Desktop Entry]
+Version=2.0
+Type=Application
+Name=NetWatch Pro
+Comment=WiFi Network Monitor and Device Management
+Exec=python3 /path/to/wifi-monitor/launch.py
+Icon=/path/to/wifi-monitor/assets/app_icon.png
+Terminal=false
+Categories=Network;System;Monitor;
+Keywords=wifi;network;monitor;devices;security;
+
+# For root/sudo access (MITM features)
+# Create a second launcher with:
+# Exec=pkexec python3 /path/to/wifi-monitor/launch.py
