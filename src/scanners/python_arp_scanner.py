@@ -9,6 +9,7 @@ import subprocess
 import re
 import platform
 import socket
+import sys
 from collections import defaultdict
 
 def get_local_ip():
@@ -23,12 +24,60 @@ def get_local_ip():
     except:
         return None
 
+def ping_sweep(subnet_base):
+    """Perform a quick ping sweep to populate ARP table"""
+    print(f"Performing ping sweep on {subnet_base}.0/24...", file=sys.stderr)
+    
+    # Create ping processes for all IPs in parallel
+    processes = []
+    for i in range(1, 255):
+        ip = f"{subnet_base}.{i}"
+        if platform.system() == "Windows":
+            # Windows: ping -n 1 -w 100 (1 ping, 100ms timeout)
+            proc = subprocess.Popen(
+                ['ping', '-n', '1', '-w', '100', ip],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+        else:
+            # Linux/Mac: ping -c 1 -W 1
+            proc = subprocess.Popen(
+                ['ping', '-c', '1', '-W', '1', ip],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+        processes.append(proc)
+        
+        # Launch in batches to avoid overwhelming the system
+        if len(processes) >= 50:
+            for p in processes:
+                p.wait()
+            processes = []
+    
+    # Wait for remaining processes
+    for p in processes:
+        p.wait()
+    
+    print("Ping sweep complete, ARP table populated", file=sys.stderr)
+
 def get_arp_table():
     """Get ARP table from system"""
     devices = []
     
     # Get this PC's IP to identify it
     local_ip = get_local_ip()
+    
+    if not local_ip:
+        print("Warning: Could not determine local IP", file=sys.stderr)
+        return devices
+    
+    # Perform ping sweep to populate ARP table
+    subnet_base = '.'.join(local_ip.split('.')[:-1])
+    ping_sweep(subnet_base)
+    
+    # Give ARP table a moment to update
+    import time
+    time.sleep(0.5)
     
     try:
         if platform.system() == "Windows":
@@ -150,6 +199,7 @@ def get_manufacturer_from_mac(mac):
     """Get manufacturer from MAC address prefix"""
     # Simple MAC vendor database (top manufacturers)
     mac_vendors = {
+        # Routers and Networking
         '00:1A:8C': 'TP-Link',
         '00:13:10': 'Linksys',
         '00:18:E7': 'Netgear',
@@ -157,6 +207,9 @@ def get_manufacturer_from_mac(mac):
         '00:1E:58': 'Asus',
         '00:0C:43': 'Ralink/MediaTek',
         '00:E0:4C': 'Realtek',
+        '00:4C:E5': 'China Telecom Router',
+        
+        # Apple
         '00:50:F2': 'Microsoft',
         '00:26:B0': 'Apple',
         '3C:37:86': 'Apple',
@@ -168,41 +221,61 @@ def get_manufacturer_from_mac(mac):
         '68:A8:6D': 'Apple',
         'F0:18:98': 'Apple',
         '00:03:93': 'Apple',
+        
+        # Virtual Machines
         '00:50:56': 'VMware',
         '08:00:27': 'VirtualBox',
         '00:15:5D': 'Hyper-V',
         '52:54:00': 'QEMU',
         '00:16:3E': 'Xen',
+        
+        # Intel
         '00:1B:21': 'Intel',
         '00:15:17': 'Intel',
         '00:21:6A': 'Intel',
+        
+        # Belkin
         '00:23:15': 'Belkin',
         '94:10:3E': 'Belkin',
         '00:1C:DF': 'Belkin',
+        
+        # Cisco
         '00:0C:41': 'Cisco',
         '00:40:96': 'Cisco',
         '00:03:E3': 'Cisco',
+        
+        # Xiaomi
         '48:F8:B3': 'Xiaomi',
         '34:CE:00': 'Xiaomi',
         '64:09:80': 'Xiaomi',
         '74:51:BA': 'Xiaomi',
         'F8:8F:CA': 'Xiaomi',
         '28:6C:07': 'Xiaomi',
+        
+        # Samsung
         '00:23:6C': 'Samsung',
         '00:12:47': 'Samsung',
         'E8:50:8B': 'Samsung',
         '34:23:BA': 'Samsung',
         '00:18:AF': 'Samsung',
         'B4:F0:AB': 'Samsung',
+        'D0:F8:8C': 'Samsung',
+        
+        # Huawei
         '00:16:DB': 'Huawei',
         '00:E0:FC': 'Huawei',
         '00:25:9E': 'Huawei',
         'AC:E2:D3': 'Huawei',
         '28:6E:D4': 'Huawei',
+        'E0:51:D8': 'Huawei',
+        
+        # LG
         '00:15:B9': 'LG',
         '00:1C:62': 'LG',
         '00:1E:75': 'LG',
         'B0:C5:54': 'LG',
+        
+        # Sony
         '00:24:1D': 'Sony',
         '00:13:A9': 'Sony',
         '00:1A:80': 'Sony',
@@ -220,19 +293,30 @@ def guess_device_type(mac, hostname):
     manufacturer = get_manufacturer_from_mac(mac)
     
     # Router detection
-    if any(x in hostname_lower for x in ['router', 'gateway', 'tplink', 'dlink', 'netgear', 'linksys']):
+    if any(x in hostname_lower for x in ['router', 'gateway', 'tplink', 'dlink', 'netgear', 'linksys', 'tianyi']):
+        return 'Router'
+    
+    if manufacturer in ['China Telecom Router', 'TP-Link', 'D-Link', 'Netgear', 'Linksys', 'Asus']:
         return 'Router'
     
     # Phone detection
     if any(x in hostname_lower for x in ['iphone', 'android', 'phone', 'mobile']):
         return 'Phone'
     
-    if manufacturer in ['Apple', 'Samsung', 'Huawei', 'Xiaomi', 'LG', 'Sony']:
+    if manufacturer in ['Huawei', 'Xiaomi']:
+        return 'Phone'
+    
+    if manufacturer in ['Apple', 'Samsung', 'LG', 'Sony']:
+        # Could be phone or tablet
         return 'Phone/Tablet'
     
     # Computer detection
     if any(x in hostname_lower for x in ['desktop', 'laptop', 'pc', 'workstation']):
         return 'Computer'
+    
+    # Check for randomized MAC (usually phones/tablets with privacy enabled)
+    if mac.upper().startswith(('82:', '86:', '8A:', '8E:', '92:', '96:', '9A:', '9E:')):
+        return 'Phone/Tablet (Privacy MAC)'
     
     # TV detection
     if any(x in hostname_lower for x in ['tv', 'television', 'smart-tv', 'roku', 'chromecast']):
